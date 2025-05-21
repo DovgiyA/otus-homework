@@ -1,0 +1,157 @@
+Практические навыки работы с ZFS
+
+Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-186-generic x86_64)
+
+user@epd7v5jit9skm936nu2t:~$ `sudo apt update`
+
+user@epd7v5jit9skm936nu2t:~$ `sudo apt install zfsutils-linux`
+
+user@epd7v5jit9skm936nu2t:~$ `sudo truncate --size 8G /loop0.img`
+
+user@epd7v5jit9skm936nu2t:~$ `sudo losetup -fP /loop0.img`
+
+user@epd7v5jit9skm936nu2t:~$ `sudo truncate --size 8G /loop1.img`
+
+user@epd7v5jit9skm936nu2t:~$ `sudo losetup -fP /loop1.img`
+
+user@epd7v5jit9skm936nu2t:~$ `lsblk`
+NAME   MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
+loop0    7:0    0   8G  0 loop 
+loop1    7:1    0   8G  0 loop 
+vda    252:0    0  30G  0 disk 
+├─vda1 252:1    0   1M  0 part 
+└─vda2 252:2    0  30G  0 part /
+vdb    252:16   0  30G  0 disk 
+
+user@epd7v5jit9skm936nu2t:~$ `sudo -i`
+
+root@epd7v5jit9skm936nu2t:~# `zpool create otus1 mirror /dev/loop0 /dev/loop1`
+
+root@epd7v5jit9skm936nu2t:~# `zpool list`
+NAME    SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT
+otus1  7.50G   112K  7.50G        -         -     0%     0%  1.00x    ONLINE  -
+
+root@epd7v5jit9skm936nu2t:~# `zfs create otus1/test1`
+root@epd7v5jit9skm936nu2t:~# `zfs create otus1/test2`
+root@epd7v5jit9skm936nu2t:~# `zfs create otus1/test3`
+root@epd7v5jit9skm936nu2t:~# `zfs create otus1/test4`
+
+root@epd7v5jit9skm936nu2t:~# `zfs set compression=lzjb otus1/test1`
+root@epd7v5jit9skm936nu2t:~# `zfs set compression=lz4 otus1/test2`
+root@epd7v5jit9skm936nu2t:~# `zfs set compression=gzip-9 otus1/test3`
+root@epd7v5jit9skm936nu2t:~# `zfs set compression=zle otus1/test4`
+root@epd7v5jit9skm936nu2t:~# `zfs get all | grep compression`
+otus1        compression           off                    default
+otus1/test1  compression           lzjb                   local
+otus1/test2  compression           lz4                    local
+otus1/test3  compression           gzip-9                 local
+otus1/test4  compression           zle                    local
+
+root@epd7v5jit9skm936nu2t:~# `for i in {1..4}; do wget -P /otus1/test$i https://gutenberg.org/cache/epub/2600/pg2600.converter.log; done`
+
+root@epd7v5jit9skm936nu2t:~# `ls -l /otus1/*`
+/otus1/test1:
+total 22100
+-rw-r--r-- 1 root root 41143613 May  2 07:31 pg2600.converter.log
+
+/otus1/test2:
+total 18008
+-rw-r--r-- 1 root root 41143613 May  2 07:31 pg2600.converter.log
+
+/otus1/test3:
+total 10967
+-rw-r--r-- 1 root root 41143613 May  2 07:31 pg2600.converter.log
+
+/otus1/test4:
+total 40219
+-rw-r--r-- 1 root root 41143613 May  2 07:31 pg2600.converter.log
+
+root@epd7v5jit9skm936nu2t:~# `zfs list`
+NAME          USED  AVAIL     REFER  MOUNTPOINT
+otus1        89.4M  7.18G       25K  /otus1
+otus1/test1  21.6M  7.18G     21.6M  /otus1/test1
+otus1/test2  17.6M  7.18G     17.6M  /otus1/test2
+otus1/test3  10.7M  7.18G     10.7M  /otus1/test3
+otus1/test4  39.3M  7.18G     39.3M  /otus1/test4
+
+root@epd7v5jit9skm936nu2t:~# `wget -O archive.tar.gz --no-check-certificate 'https://drive.usercontent.google.com/download?id=1MvrcEp-WgAQe57aDEzxSRalPAwbNN1Bb&export=download'`
+
+root@epd7v5jit9skm936nu2t:~# `tar -xzvf archive.tar.gz`
+zpoolexport/
+zpoolexport/filea
+zpoolexport/fileb
+
+root@epd7v5jit9skm936nu2t:~# `zpool import -d zpoolexport/ otus`
+root@epd7v5jit9skm936nu2t:~# `zpool status`
+  pool: otus
+ state: ONLINE
+  scan: none requested
+config:
+
+	NAME                         STATE     READ WRITE CKSUM
+	otus                         ONLINE       0     0     0
+	  mirror-0                   ONLINE       0     0     0
+	    /root/zpoolexport/filea  ONLINE       0     0     0
+	    /root/zpoolexport/fileb  ONLINE       0     0     0
+
+errors: No known data errors
+
+  pool: otus1
+ state: ONLINE
+  scan: none requested
+config:
+
+	NAME        STATE     READ WRITE CKSUM
+	otus1       ONLINE       0     0     0
+	  mirror-0  ONLINE       0     0     0
+	    loop0   ONLINE       0     0     0
+	    loop1   ONLINE       0     0     0
+
+errors: No known data errors
+
+root@epd7v5jit9skm936nu2t:~# `zfs get available otus`
+NAME  PROPERTY   VALUE  SOURCE
+otus  available  350M   -
+
+root@epd7v5jit9skm936nu2t:~# `zfs get recordsize otus`
+NAME  PROPERTY    VALUE    SOURCE
+otus  recordsize  128K     local
+
+root@epd7v5jit9skm936nu2t:~# `zfs get type otus`
+NAME  PROPERTY  VALUE       SOURCE
+otus  type      filesystem  -
+
+root@epd7v5jit9skm936nu2t:~# `zfs get compression otus`
+NAME  PROPERTY     VALUE     SOURCE
+otus  compression  zle       local
+
+root@epd7v5jit9skm936nu2t:~# `zfs get checksum otus`
+NAME  PROPERTY  VALUE      SOURCE
+otus  checksum  sha256     local
+
+root@epd7v5jit9skm936nu2t:~# `wget -O otus_task2.file --no-check-certificate https://drive.usercontent.google.com/download?id=1wgxjih8YZ-cqLqaZVa0lA3h3Y029c3oI&export=download`
+
+root@epd7v5jit9skm936nu2t:~# `zfs receive otus/test@today < otus_task2.file`
+
+root@epd7v5jit9skm936nu2t:~# `find /otus/test -name "secret_message"`
+/otus/test/task1/file_mess/secret_message
+
+root@epd7v5jit9skm936nu2t:~# `cat /otus/test/task1/file_mess/secret_message`
+https://otus.ru/lessons/linux-hl/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

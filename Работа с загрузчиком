@@ -29,7 +29,15 @@ Check GRUB_DISABLE_OS_PROBER documentation entry.
 Adding boot menu entry for UEFI Firmware Settings ...
 done
 
-user@qw:~$ `sudo reboot`
+user@qw:~$ `sudo reboot
+
+
+
+root@qw:~# vgs
+  VG        #PV #LV #SN Attr   VSize   VFree
+  ubuntu-vg   1   1   0 wz--n- <17.32g <7.32g
+root@qw:~# vgrename ubuntu-vg ubuntu-otus
+  Volume group "ubuntu-vg" successfully renamed to "ubuntu-otus"
 
 
 

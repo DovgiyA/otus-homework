@@ -1,0 +1,189 @@
+Systemd - создание unit-файла
+
+Ubuntu 24.04.2 LTS (GNU/Linux 6.8.0-60-generic aarch64)
+
+Задание №1
+
+user@qw:~$ `sudo nano /etc/default/watchlog`
+
+`WORD="ALERT"
+LOG=/var/log/watchlog.log`
+
+user@qw:~$ `sudo nano /var/log/watchlog.log`
+
+user@qw:~$ `sudo nano /opt/watchlog.sh`
+
+`#!/bin/bash
+
+WORD=$1
+LOG=$2
+DATE=`date`
+
+if grep $WORD $LOG &> /dev/null
+then
+logger "$DATE: I found word, Master!"
+else
+exit 0
+fi`
+
+user@qw:~$ `sudo chmod +x /opt/watchlog.sh`
+
+user@qw:~$ `sudo nano /etc/systemd/system/watchlog.service`
+
+`[Unit]
+Description=My watchlog service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/watchlog
+ExecStart=/opt/watchlog.sh $WORD $LOG`
+
+
+user@qw:~$ `sudo nano /etc/systemd/system/watchlog.timer`
+
+`[Unit]
+Description=Run watchlog script every 30 second
+
+[Timer]
+# Run every 30 second
+OnUnitActiveSec=30
+Unit=watchlog.service
+
+[Install]
+WantedBy=multi-user.target`
+
+user@qw:~$ `systemctl start watchlog.timer`
+
+user@qw:~$ `tail -n 1000 /var/log/syslog  | grep word`
+2025-06-11T08:11:44.153829+00:00 qw kernel: systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+2025-06-11T08:11:44.153871+00:00 qw kernel: audit: type=1400 audit(1749629503.712:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="1password" pid=582 comm="apparmor_parser"
+
+Задание №2
+
+user@qw:~$ `sudo apt install spawn-fcgi php php-cgi php-cli apache2 libapache2-mod-fcgid -y`
+
+user@qw:~$ `sudo mkdir /etc/spawn-fcgi`
+
+user@qw:~$ `sudo nano /etc/spawn-fcgi/fcgi.conf`
+
+`SOCKET=/var/run/php-fcgi.sock
+OPTIONS="-u www-data -g www-data -s $SOCKET -S -M 0600 -C 32 -F 1 -- /usr/bin/php-cgi"`
+
+user@qw:~$ `sudo nano /etc/systemd/system/spawn-fcgi.service`
+
+`[Unit]
+Description=Spawn-fcgi startup service by Otus
+After=network.target
+
+[Service]
+Type=simple
+PIDFile=/var/run/spawn-fcgi.pid
+EnvironmentFile=/etc/spawn-fcgi/fcgi.conf
+ExecStart=/usr/bin/spawn-fcgi -n $OPTIONS
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target`
+
+user@qw:~$ `systemctl start spawn-fcgi`
+
+user@qw:~$ `systemctl status spawn-fcgi`
+● spawn-fcgi.service - Spawn-fcgi startup service by Otus
+     Loaded: loaded (/etc/systemd/system/spawn-fcgi.service; disabled; preset: enabled)
+     Active: active (running) since Thu 2025-06-12 08:06:24 UTC; 12s ago
+   Main PID: 11754 (php-cgi)
+      Tasks: 33 (limit: 4550)
+     Memory: 14.3M (peak: 14.8M)
+        CPU: 15ms
+     CGroup: /system.slice/spawn-fcgi.service
+
+Задание №3
+
+user@qw:~$ `sudo systemctl stop apache2`
+
+user@qw:~$ `sudo apt install nginx -y`
+
+user@qw:~$ `sudo nano /etc/systemd/system/nginx@.service`
+
+[Unit]
+Description=A high performance web server and a reverse proxy server
+Documentation=man:nginx(8)
+After=network.target nss-lookup.target
+
+[Service]
+Type=forking
+PIDFile=/run/nginx-%I.pid
+ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx-%I.conf -q -g 'daemon on; master_process on;'
+ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx-%I.conf -g 'daemon on; master_process on;'
+ExecReload=/usr/sbin/nginx -c /etc/nginx/nginx-%I.conf -g 'daemon on; master_process on;' -s reload
+ExecStop=-/sbin/start-stop-daemon --quiet --stop --retry QUIT/5 --pidfile /run/nginx-%I.pid
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+
+user@qw:~$ `sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx-first.conf`
+
+user@qw:~$ `sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx-second.conf`
+
+user@qw:~$ `sudo nano /etc/nginx/nginx-first.conf`
+
+pid /run/nginx-first.pid;
+
+http {
+…
+	server {
+		listen 9001;
+	}
+#include /etc/nginx/sites-enabled/*;
+….
+}
+
+user@qw:~$ `sudo nano /etc/nginx/nginx-second.conf`
+
+pid /run/nginx-second.pid;
+
+http {
+…
+	server {
+		listen 9002;
+	}
+#include /etc/nginx/sites-enabled/*;
+….
+}
+
+user@qw:~$ `systemctl start nginx@first`
+
+user@qw:~$ `sudo systemctl start nginx@second`
+
+user@qw:~$ `sudo systemctl status nginx@second`
+
+● nginx@second.service - A high performance web server and a reverse proxy server
+     Loaded: loaded (/etc/systemd/system/nginx@.service; disabled; preset: enabled)
+     Active: active (running) since Thu 2025-06-12 08:48:17 UTC; 14s ago
+       Docs: man:nginx(8)
+    Process: 12340 ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx-second.conf -q -g daemon on; master_process on; (code=exited, s>
+    Process: 12341 ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx-second.conf -g daemon on; master_process on; (code=exited, status=0/S>
+   Main PID: 12343 (nginx)
+      Tasks: 3 (limit: 4550)
+     Memory: 2.3M (peak: 2.5M)
+        CPU: 14ms
+     CGroup: /system.slice/system-nginx.slice/nginx@second.service
+             ├─12343 "nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx-second.conf -g daemon on; master_process on;"
+             ├─12344 "nginx: worker process"
+             └─12345 "nginx: worker process"
+
+user@qw:~$ `sudo ss -tnulp | grep nginx`
+tcp   LISTEN 0      511                0.0.0.0:80        0.0.0.0:*    users:(("nginx",pid=12193,fd=5),("nginx",pid=12192,fd=5),("nginx",pid=12191,fd=5))
+tcp   LISTEN 0      511                0.0.0.0:9001      0.0.0.0:*    users:(("nginx",pid=12333,fd=5),("nginx",pid=12332,fd=5),("nginx",pid=12331,fd=5))
+tcp   LISTEN 0      511                0.0.0.0:9002      0.0.0.0:*    users:(("nginx",pid=12345,fd=5),("nginx",pid=12344,fd=5),("nginx",pid=12343,fd=5))
+tcp   LISTEN 0      511                   [::]:80           [::]:*    users:(("nginx",pid=12193,fd=6),("nginx",pid=12192,fd=6),("nginx",pid=12191,fd=6))
+
+
+
+
+
+
+
+

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+for pid in /proc/[0-9]*; do
+  pid_num=$(basename $pid)
+  echo "Process ID: $pid_num"
+  for fd in $pid/fd/*; do
+    if [ -e "$fd" ]; then
+      link=$(readlink -f "$fd")
+      echo "  $fd -> $link"
+    fi
+  done
+done

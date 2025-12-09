@@ -1,0 +1,6 @@
+---
+- name: Configure borgbackup
+  hosts: all
+  become: yes
+  roles:
+    - borg_backup

@@ -1,0 +1,14 @@
+---
+# Установка borgbackup на обе стороны
+- name: Install borgbackup
+  package:
+    name: borgbackup
+    state: present
+
+# Настраиваем backup-сервер
+- import_tasks: backup_server.yml
+  when: inventory_hostname in groups['backup']
+
+# Настраиваем client-сервер
+- import_tasks: client.yml
+  when: inventory_hostname in groups['client']

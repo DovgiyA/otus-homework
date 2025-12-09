@@ -1,0 +1,32 @@
+[Unit]
+Description=BorgBackup /etc to {{ backup_server }}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ client_user }}
+Environment="BORG_PASSPHRASE={{ password }}"
+Environment="REPO=ssh://{{ backup_user }}@{{ backup_server }}{{ backup_dir }}/repo"
+Environment="BACKUP_TARGET={{ backup_source }}"
+
+# Создание архива
+ExecStart=/bin/borg create \
+    --stats --list --compression lz4 \
+    ${REPO}::etc-$(date +\%Y-\%m-\%d_\%H:\%M:\%S) \
+    ${BACKUP_TARGET}
+
+# Проверка
+ExecStart=/bin/borg check ${REPO}
+
+# Очистка старых
+ExecStart=/bin/borg prune \
+    --keep-daily  90 \
+    --keep-monthly 12 \
+    --keep-yearly  1 \
+    ${REPO}
+
+# Логируем в syslog
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=borg-etc

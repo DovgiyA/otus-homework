@@ -1,0 +1,52 @@
+---
+- name: Create backup user
+  user:
+    name: "{{ backup_user }}"
+    system: yes
+    shell: /bin/bash
+    home: "/home/{{ backup_user }}"
+
+- name: Create backup directory
+  file:
+    path: "{{ backup_dir }}"
+    state: directory
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: '0755'
+
+# ---- 2 Гб-файл-образ вместо отдельного раздела ----
+- name: Create image file
+  command: fallocate -l {{ backup_img_size }} {{ backup_dir }}/backup.img
+  args:
+    creates: "{{ backup_dir }}/backup.img"
+
+- name: Make ext4 fs inside image
+  filesystem:
+    fstype: ext4
+    dev: "{{ backup_dir }}/backup.img"
+
+- name: Mount image loop → /var/backup
+  mount:
+    path: "{{ backup_dir }}"
+    src: "{{ backup_dir }}/backup.img"
+    fstype: ext4
+    opts: loop
+    state: mounted
+
+# ---- SSH-ключи ----
+- name: Create .ssh for backup user
+  file:
+    path: "/home/{{ backup_user }}/.ssh"
+    state: directory
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: '0700'
+
+- name: Deploy authorized_keys (заполняется публичным ключом клиента)
+  copy:
+    src: authorized_keys   # кладёте сюда публичный ключ клиента заранее
+    dest: "/home/{{ backup_user }}/.ssh/authorized_keys"
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: '0600'
+  notify: restart sshd

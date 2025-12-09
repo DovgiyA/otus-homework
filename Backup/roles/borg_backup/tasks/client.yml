@@ -1,0 +1,54 @@
+---
+- name: Generate SSH-key for client user (root)
+  user:
+    name: "{{ client_user }}"
+    generate_ssh_key: yes
+    ssh_key_type: ed25519
+    ssh_key_file: "/{{ client_user }}/.ssh/id_ed25519"
+
+- name: Fetch public key to controller
+  slurp:
+    src: "/{{ client_user }}/.ssh/id_ed25519.pub"
+  register: client_pub_key
+
+# Добавим ключ на backup-сервер через delegate_to (если inventory разный)
+- name: Add client key to backup server authorized_keys
+  lineinfile:
+    path: "/home/{{ backup_user }}/.ssh/authorized_keys"
+    line: "{{ client_pub_key.content | b64decode }}"
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: '0600'
+    create: yes
+  delegate_to: "{{ backup_server }}"
+  become: yes
+
+# ---- Инициализация репозитория ----
+- name: Init borg repo on backup server
+  command: |
+    borg init --encryption=repokey-blake2 \
+      ssh://{{ backup_user }}@{{ backup_server }}{{ backup_dir }}/repo
+  environment:
+    BORG_PASSPHRASE: "{{ password }}"
+  become_user: "{{ client_user }}"
+  args:
+    creates: "/{{ client_user }}/.config/borg/security/{{ backup_server }}/{{ backup_dir }}/repo"
+
+# ---- systemd unit/timer ----
+- name: Deploy borg-backup.service
+  template:
+    src: borg-backup.service.j2
+    dest: /etc/systemd/system/borg-backup.service
+  notify: daemon-reload
+
+- name: Deploy borg-backup.timer
+  template:
+    src: borg-backup.timer.j2
+    dest: /etc/systemd/system/borg-backup.timer
+  notify: daemon-reload
+
+- name: Enable & start timer
+  systemd:
+    name: borg-backup.timer
+    enabled: yes
+    state: started

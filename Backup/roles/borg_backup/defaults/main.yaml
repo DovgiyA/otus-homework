@@ -1,0 +1,8 @@
+backup_user: 'borg'
+password: 'Otus1234'
+backup_server: '158.160.208.158'
+backup_dir: '/var/backup'
+backup_img_size: '2G'
+backup_source: '/etc'
+client_user: 'root'
+

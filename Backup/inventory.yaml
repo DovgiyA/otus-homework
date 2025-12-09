@@ -1,0 +1,15 @@
+all:
+  hosts:
+    backup:
+      ansible_host: 158.160.208.158
+      ansible_user: user
+      ansible_password: uihgueuiif
+    client:
+      ansible_host: 158.160.215.113
+      ansible_user: user
+      ansible_password: uihgueuiif
+  children:
+    db:
+      hosts:
+        backup:
+        client:

@@ -33,8 +33,7 @@
     opts: loop
     state: mounted
 
-# ---- SSH-ключи ----
-- name: Create .ssh for backup user
+- name: Ensure backup user .ssh dir
   file:
     path: "/home/{{ backup_user }}/.ssh"
     state: directory
@@ -42,11 +41,11 @@
     group: "{{ backup_user }}"
     mode: '0700'
 
-- name: Deploy authorized_keys (заполняется публичным ключом клиента)
+- name: Set authorized_keys from variable
   copy:
-    src: authorized_keys   # кладёте сюда публичный ключ клиента заранее
+    content: "{{ hostvars['client']['client_pub_key']['content'] | b64decode }}"
     dest: "/home/{{ backup_user }}/.ssh/authorized_keys"
     owner: "{{ backup_user }}"
     group: "{{ backup_user }}"
     mode: '0600'
-  notify: restart sshd
+  when: hostvars['client']['client_pub_key'] is defined

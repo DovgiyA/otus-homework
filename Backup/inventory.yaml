@@ -1,15 +1,17 @@
 all:
   hosts:
     backup:
-      ansible_host: 158.160.208.158
+      ansible_host: 158.160.180.44
       ansible_user: user
-      ansible_password: uihgueuiif
+      ansible_password: siulvyvbxd
     client:
-      ansible_host: 158.160.215.113
+      ansible_host: 158.160.181.148
       ansible_user: user
-      ansible_password: uihgueuiif
+      ansible_password: siulvyvbxd
   children:
-    db:
+    backup:        # теперь groups.backup существует
       hosts:
         backup:
+    client:        # и groups.client тоже
+      hosts:
         client:

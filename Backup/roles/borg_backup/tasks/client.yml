@@ -20,19 +20,35 @@
     group: "{{ backup_user }}"
     mode: '0600'
     create: yes
-  delegate_to: "{{ backup_server }}"
+  delegate_to: "{{ groups['backup_servers'][0] }}"
   become: yes
 
 # ---- Инициализация репозитория ----
+# ---- Скрипт бекапа ----
+- name: Deploy backup script
+  template:
+    src: backup.sh.j2
+    dest: /usr/local/bin/borg-backup.sh
+    mode: '0755'
+
+# ---- Инициализация репозитория ----
+# Check if repo exists on backup server first
+- name: Check if repo exists
+  stat:
+    path: "{{ backup_dir }}/repo/config"
+  register: repo_config
+  delegate_to: "{{ groups['backup_servers'][0] }}"
+  become: yes
+
 - name: Init borg repo on backup server
   command: |
     borg init --encryption=repokey-blake2 \
       ssh://{{ backup_user }}@{{ backup_server }}{{ backup_dir }}/repo
   environment:
     BORG_PASSPHRASE: "{{ password }}"
+    BORG_RSH: "ssh -o StrictHostKeyChecking=no"
   become_user: "{{ client_user }}"
-  args:
-    creates: "/{{ client_user }}/.config/borg/security/{{ backup_server }}/{{ backup_dir }}/repo"
+  when: not repo_config.stat.exists
 
 # ---- systemd unit/timer ----
 - name: Deploy borg-backup.service

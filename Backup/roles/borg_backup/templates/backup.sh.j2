@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Configuration
+# Configuration
+REPO="ssh://{{ backup_user }}@{{ backup_server }}{{ backup_dir }}/repo"
+BACKUP_SOURCE="{{ backup_source }}"
+LOG_TAG="borg-backup"
+
+# Logging function
+log() {
+    logger -t "$LOG_TAG" "$1"
+    echo "$1"
+}
+
+export BORG_PASSPHRASE="{{ password }}"
+export BORG_RSH="ssh -o StrictHostKeyChecking=no"
+
+log "Starting backup for $BACKUP_SOURCE"
+
+# Create backup
+borg create --stats --progress \
+    $REPO::"etc-{now:%Y-%m-%d_%H:%M:%S}" \
+    $BACKUP_SOURCE 2>&1 | while read line; do log "$line"; done
+
+if [ $? -eq 0 ]; then
+    log "Backup created successfully"
+else
+    log "Backup creation failed"
+    exit 1
+fi
+
+log "Pruning old backups"
+
+# Prune backups
+# Requirement:
+# - Daily backups for the last 3 months (keep-daily 90)
+# - Monthly backups for the last year (keep-monthly 12)
+# - Except last 3 months (Borg keeps the "optimal" set, strict exclusion isn't standard flag but keep-daily 90 covers the last 3 months fully, and keep-monthly 12 covers the year. Borg preserves archives that match the rules.)
+# Requirement interpretation: "store one per month for the last year, except the last three months which should have daily copies".
+# This implies:
+# 0-3 months: daily
+# 3-12 months: monthly
+# Borg's --keep-daily 90 --keep-monthly 12 does exactly this (keeps daily for 90 days, and monthly for 12 months. Since the last 90 days are covered by daily, they are preserved. Older than 90 days are pruned to monthly).
+
+borg prune -v --list --keep-daily=90 --keep-monthly=12 $REPO 2>&1 | while read line; do log "$line"; done
+
+if [ $? -eq 0 ]; then
+    log "Pruning completed successfully"
+else
+    log "Pruning failed"
+    exit 1
+fi

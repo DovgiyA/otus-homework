@@ -1,0 +1,83 @@
+---
+- name: Обновить apt-кеш
+  apt:
+    update_cache: yes
+
+- name: Установить пакеты, необходимые для работы репозитория по HTTPS
+  apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - software-properties-common
+    state: present
+
+- name: Создать директорию для ключей apt
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Добавить официальный GPG-ключ Docker
+  shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+
+- name: Установить права на файл ключа
+  file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: 'a+r'
+
+- name: Добавить репозиторий Docker
+  shell: |
+    echo "deb [arch=$(dpkg --print-architecture) \
+    signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
+  args:
+    creates: /etc/apt/sources.list.d/docker.list
+
+- name: Обновить apt-кеш после добавления репозитория
+  apt:
+    update_cache: yes
+
+- name: Установить Docker и все его компоненты
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+- name: Create ELK directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ elk_dir }}"
+    - "{{ elk_dir }}/pipeline"
+
+- name: Template docker-compose
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ elk_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: restart elk
+
+- name: Template Logstash pipeline
+  template:
+    src: pipeline/nginx-audit.conf.j2
+    dest: "{{ elk_dir }}/pipeline/nginx-audit.conf"
+    mode: '0644'
+  notify: restart elk
+
+- name: Start ELK stack
+  shell: docker compose up -d
+  args:
+    chdir: "{{ elk_dir }}"

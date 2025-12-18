@@ -1,0 +1,14 @@
+input {
+  beats { port => 5044 }
+}
+filter {
+  if [fields][logtype] == "nginx" {
+    grok { match => { "message" => "%{COMBINEDAPACHELOG}" } }
+  }
+  if [fields][logtype] == "audit" {
+    grok { match => { "message" => "type=%{WORD:type} msg=audit\(%{NUMBER:epoch}\):%{GREEDYDATA:msg}" } }
+  }
+}
+output {
+  elasticsearch { hosts => ["elasticsearch:9200"] }
+}

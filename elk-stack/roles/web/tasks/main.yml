@@ -1,0 +1,52 @@
+---
+- name: Обновление apt кэша
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Установка Nginx
+  apt:
+    name: nginx
+    state: present
+  notify: restart nginx
+
+- name: Template virtual host
+  template:
+    src: nginx-vhost.conf.j2
+    dest: "/etc/nginx/sites-available/default"
+    mode: '0644'
+  notify: restart nginx
+
+- name: Enable rsyslog nginx config
+  template:
+    src: rsyslog-nginx.conf.j2
+    dest: /etc/rsyslog.d/50-nginx.conf
+    mode: '0644'
+  notify: restart rsyslog
+
+- name: Скачивание Filebeat 9.2.2
+  get_url:
+    url: https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-9.2.2-amd64.deb
+    dest: /tmp/filebeat-9.2.2-amd64.deb
+    mode: '0644'
+
+- name: Установка Filebeat из DEB-пакета
+  apt:
+    deb: /tmp/filebeat-9.2.2-amd64.deb
+
+- name: Template filebeat.yml
+  template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    mode: '0644'
+  notify: restart filebeat
+
+- name: Enable and start services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - nginx
+    - rsyslog
+    - filebeat

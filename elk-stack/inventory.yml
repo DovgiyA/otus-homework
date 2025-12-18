@@ -1,0 +1,14 @@
+all:
+  children:
+    web:
+      hosts:
+        web-01:
+          ansible_host: 158.160.185.112
+          ansible_user: user
+          ansible_password: rgocotk
+    log:
+      hosts:
+        log-01:
+          ansible_host: 158.160.191.119
+          ansible_user: user
+          ansible_password: rgocotk

@@ -5,6 +5,7 @@
     system: yes
     shell: /bin/bash
     home: "/home/{{ backup_user }}"
+    password: "{{ password | password_hash('sha512') }}"
 
 - name: Create backup directory
   file:
@@ -16,22 +17,30 @@
 
 # ---- 2 Гб-файл-образ вместо отдельного раздела ----
 - name: Create image file
-  command: fallocate -l {{ backup_img_size }} {{ backup_dir }}/backup.img
+  command: fallocate -l {{ backup_img_size }} /var/backup.img
   args:
-    creates: "{{ backup_dir }}/backup.img"
+    creates: "/var/backup.img"
 
 - name: Make ext4 fs inside image
   filesystem:
     fstype: ext4
-    dev: "{{ backup_dir }}/backup.img"
+    dev: "/var/backup.img"
 
 - name: Mount image loop → /var/backup
   mount:
     path: "{{ backup_dir }}"
-    src: "{{ backup_dir }}/backup.img"
+    src: "/var/backup.img"
     fstype: ext4
     opts: loop
     state: mounted
+
+- name: Set ownership of mount point
+  file:
+    path: "{{ backup_dir }}"
+    state: directory
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: '0755'
 
 - name: Ensure backup user .ssh dir
   file:
@@ -49,3 +58,4 @@
     group: "{{ backup_user }}"
     mode: '0600'
   when: hostvars['client']['client_pub_key'] is defined
+

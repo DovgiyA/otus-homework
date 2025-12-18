@@ -1,0 +1,11 @@
+---
+- name: enable docker
+  systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+- name: restart elk
+  shell: docker compose restart
+  args:
+    chdir: "{{ elk_dir }}"

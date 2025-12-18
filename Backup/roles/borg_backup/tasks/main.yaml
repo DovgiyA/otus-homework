@@ -7,8 +7,8 @@
 
 # Настраиваем backup-сервер
 - import_tasks: backup_server.yml
-  when: inventory_hostname in groups['backup']
+  when: inventory_hostname in groups['backup_servers']
 
 # Настраиваем client-сервер
 - import_tasks: client.yml
-  when: inventory_hostname in groups['client']
+  when: inventory_hostname in groups['clients']

@@ -3,12 +3,14 @@ all:
     web:
       hosts:
         web-01:
-          ansible_host: 158.160.185.112
-          ansible_user: user
-          ansible_password: rgocotk
+          ansible_connection: ssh
+          ansible_user: my-ansible-sa-profile
+          ansible_ssh_private_key_file: /home/alex/yandex-cloud/ansible_key/my-ansible-sa-profile
+          ansible_host: 84.252.132.183
     log:
       hosts:
         log-01:
-          ansible_host: 158.160.191.119
-          ansible_user: user
-          ansible_password: rgocotk
+          ansible_connection: ssh
+          ansible_user: my-ansible-sa-profile
+          ansible_ssh_private_key_file: /home/alex/yandex-cloud/ansible_key/my-ansible-sa-profile
+          ansible_host: 158.160.186.6

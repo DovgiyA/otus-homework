@@ -5,6 +5,11 @@
     enabled: yes
     state: started
 
+- name: restart rsyslog
+  systemd:
+    name: rsyslog
+    state: restarted
+
 - name: restart elk
   shell: docker compose restart
   args:

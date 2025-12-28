@@ -1,14 +1,71 @@
 input {
-  beats { port => 5044 }
+  # Filebeat input для прямой отправки логов
+  beats { 
+    port => 5044 
+  }
+  
+  # Syslog input для rsyslog
+  tcp {
+    port => 5000
+    type => "syslog"
+  }
 }
+
 filter {
-  if [fields][logtype] == "nginx" {
-    grok { match => { "message" => "%{COMBINEDAPACHELOG}" } }
+  # Парсинг nginx логов из filebeat
+  if [logtype] == "nginx" {
+    grok { 
+      match => { "message" => "%{COMBINEDAPACHELOG}" } 
+      tag_on_failure => ["_grokparsefailure_nginx"]
+    }
   }
-  if [fields][logtype] == "audit" {
-    grok { match => { "message" => "type=%{WORD:type} msg=audit\(%{NUMBER:epoch}\):%{GREEDYDATA:msg}" } }
+  
+  # Парсинг audit логов из filebeat
+  if [logtype] == "audit" {
+    grok { 
+      match => { "message" => "type=%{WORD:audit_type}.*msg=audit\\(%{NUMBER:audit_epoch}:%{NUMBER:audit_id}\\):%{GREEDYDATA:audit_msg}" }
+      tag_on_failure => ["_grokparsefailure_audit"]
+    }
+  }
+  
+  # Парсинг syslog сообщений от rsyslog
+  if [type] == "syslog" {
+    grok {
+      match => { "message" => "<%{POSINT:syslog_pri}>%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}" }
+      tag_on_failure => ["_grokparsefailure_syslog"]
+    }
+    
+    # Определение типа лога по тегу
+    if [syslog_program] =~ /nginx-access/ {
+      mutate { 
+        add_field => { "log_source" => "nginx_access" }
+      }
+      grok {
+        match => { "syslog_message" => "%{COMBINEDAPACHELOG}" }
+        tag_on_failure => ["_grokparsefailure_nginx_access"]
+      }
+    } else if [syslog_program] =~ /nginx-error/ {
+      mutate { 
+        add_field => { "log_source" => "nginx_error" }
+      }
+    } else if [syslog_program] =~ /audit/ {
+      mutate { 
+        add_field => { "log_source" => "audit" }
+      }
+      grok {
+        match => { "syslog_message" => "type=%{WORD:audit_type}.*msg=audit\\(%{NUMBER:audit_epoch}:%{NUMBER:audit_id}\\):%{GREEDYDATA:audit_msg}" }
+        tag_on_failure => ["_grokparsefailure_audit_syslog"]
+      }
+    }
   }
 }
+
 output {
-  elasticsearch { hosts => ["elasticsearch:9200"] }
+  elasticsearch { 
+    hosts => ["elasticsearch:9200"]
+    index => "logstash-%{+YYYY.MM.dd}"
+  }
+  
+  # Debug output (опционально, можно закомментировать)
+  # stdout { codec => rubydebug }
 }

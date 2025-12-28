@@ -3,15 +3,27 @@ $InputFilePollInterval 10
 $PrivDropToGroup adm
 $WorkDirectory /var/spool/rsyslog
 
-# следим за error-логом nginx
-$InputFileName /var/log/nginx/error.log
-$InputFileTag nginx-error:
-$InputFileStateFile stat-nginx-error
-$InputFileSeverity error
-$InputFileFacility local0
+# следим за audit-логом (только удаленно)
+$InputFileName /var/log/audit/audit.log
+$InputFileTag audit:
+$InputFileStateFile stat-audit
+$InputFileSeverity notice
+$InputFileFacility local2
 $InputRunFileMonitor
 
-# локальный критичный файл
-local0.*        /var/log/nginx/critical.log
-# удалённый сервер
-local0.*        @@158.160.191.119:514
+# Отправка audit логов на удаленный сервер
+if $syslogtag == 'audit:' then {
+    @@{{ log_server_ip }}:514
+    stop
+}
+
+# Отправка nginx логов на удаленный сервер (syslog input)
+if $programname == 'nginx_access' then {
+    @@{{ log_server_ip }}:514
+    stop
+}
+
+if $programname == 'nginx_error' then {
+    @@{{ log_server_ip }}:514
+    stop
+}

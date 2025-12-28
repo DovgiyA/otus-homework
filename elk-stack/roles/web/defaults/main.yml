@@ -1,0 +1,1 @@
+log_server_ip: "{{ hostvars['log-01']['ansible_host'] }}"

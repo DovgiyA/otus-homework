@@ -1,7 +1,32 @@
 ---
+- name: Increase vm.max_map_count for Elasticsearch
+  sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    state: present
+    reload: yes
+
 - name: Обновить apt-кеш
   apt:
     update_cache: yes
+
+- name: Установить rsyslog
+  apt:
+    name: rsyslog
+    state: present
+
+- name: Настроить rsyslog как сервер
+  template:
+    src: rsyslog-server.conf.j2
+    dest: /etc/rsyslog.d/50-server.conf
+    mode: '0644'
+  notify: restart rsyslog
+
+- name: Запустить и включить rsyslog
+  systemd:
+    name: rsyslog
+    enabled: yes
+    state: started
 
 - name: Установить пакеты, необходимые для работы репозитория по HTTPS
   apt:
@@ -76,6 +101,15 @@
     dest: "{{ elk_dir }}/pipeline/nginx-audit.conf"
     mode: '0644'
   notify: restart elk
+
+- name: Pull ELK images
+  shell: timeout 600 docker compose pull
+  args:
+    chdir: "{{ elk_dir }}"
+  register: pull_result
+  retries: 5
+  delay: 10
+  until: pull_result is success
 
 - name: Start ELK stack
   shell: docker compose up -d

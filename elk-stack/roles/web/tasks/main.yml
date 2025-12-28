@@ -17,29 +17,26 @@
     mode: '0644'
   notify: restart nginx
 
+- name: Установка auditd
+  apt:
+    name: 
+      - auditd
+      - audispd-plugins
+    state: present
+
+- name: Копирование правил audit для nginx
+  template:
+    src: nginx-audit.rules.j2
+    dest: /etc/audit/rules.d/nginx-audit.rules
+    mode: '0640'
+  notify: restart auditd
+
 - name: Enable rsyslog nginx config
   template:
     src: rsyslog-nginx.conf.j2
-    dest: /etc/rsyslog.d/50-nginx.conf
+    dest: /etc/rsyslog.d/10-nginx.conf
     mode: '0644'
   notify: restart rsyslog
-
-- name: Скачивание Filebeat 9.2.2
-  get_url:
-    url: https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-9.2.2-amd64.deb
-    dest: /tmp/filebeat-9.2.2-amd64.deb
-    mode: '0644'
-
-- name: Установка Filebeat из DEB-пакета
-  apt:
-    deb: /tmp/filebeat-9.2.2-amd64.deb
-
-- name: Template filebeat.yml
-  template:
-    src: filebeat.yml.j2
-    dest: /etc/filebeat/filebeat.yml
-    mode: '0644'
-  notify: restart filebeat
 
 - name: Enable and start services
   systemd:
@@ -47,6 +44,6 @@
     enabled: yes
     state: started
   loop:
-    - nginx
+    - auditd
     - rsyslog
-    - filebeat
+    - nginx

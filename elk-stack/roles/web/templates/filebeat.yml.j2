@@ -8,7 +8,15 @@ filebeat.inputs:
     logtype: nginx
   fields_under_root: true
 
+- type: log
+  enabled: true
+  paths:
+    - /var/log/audit/audit.log
+  fields:
+    logtype: audit
+  fields_under_root: true
+
 output.logstash:
-  hosts: ["158.160.191.119:5044"]
+  hosts: ["{{ log_server_ip }}:5044"]
 
 logging.level: info

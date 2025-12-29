@@ -1,0 +1,52 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-20.04"
+  config.vm.provision "shell", inline: "apt-get update && apt-get install -y python3"
+
+  config.vm.define "inetRouter" do |node|
+    node.vm.hostname = "inetRouter"
+    node.vm.network "private_network", ip: "192.168.50.10"
+    node.vm.provider "virtualbox" do |vb|
+      vb.memory = "512"
+      vb.cpus = 1
+    end
+  end
+
+  config.vm.define "centralRouter" do |node|
+    node.vm.hostname = "centralRouter"
+    node.vm.network "private_network", ip: "192.168.50.11"
+    node.vm.provider "virtualbox" do |vb|
+        vb.memory = "512"
+        vb.cpus = 1
+    end
+  end
+
+  config.vm.define "centralServer" do |node|
+    node.vm.hostname = "centralServer"
+    node.vm.network "private_network", ip: "192.168.50.12"
+    node.vm.provider "virtualbox" do |vb|
+        vb.memory = "512"
+        vb.cpus = 1
+    end
+  end
+
+  config.vm.define "inetRouter2" do |node|
+    node.vm.hostname = "inetRouter2"
+    node.vm.network "private_network", ip: "192.168.50.13"
+    # Forward port 8080 on host to 8080 on guest (which will forward to 80 on centralServer)
+    node.vm.network "forwarded_port", guest: 8080, host: 8080
+    node.vm.provider "virtualbox" do |vb|
+        vb.memory = "512"
+        vb.cpus = 1
+    end
+  end
+
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "provision.yml"
+    ansible.inventory_path = "inventory"
+    ansible.limit = "all"
+    ansible.host_key_checking = false
+  end
+end

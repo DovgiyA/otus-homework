@@ -1,0 +1,40 @@
+---
+- name: Install knockd
+  apt:
+    name: knockd
+    state: present
+    update_cache: yes
+
+- name: Configure knockd.conf
+  template:
+    src: knockd.conf.j2
+    dest: /etc/knockd.conf
+    mode: '0640'
+  notify: restart knockd
+
+- name: Enable ip_forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+  
+- name: Enable and start knockd
+  service:
+    name: knockd
+    state: started
+    enabled: yes
+
+- name: Configure network interface for knockd
+  lineinfile:
+    path: /etc/default/knockd
+    regexp: '^START_KNOCKD='
+    line: 'START_KNOCKD=1'
+    
+- name: Configure Knockd Interface
+  lineinfile:
+    path: /etc/default/knockd
+    regexp: '^KNOCKD_OPTS='
+    line: 'KNOCKD_OPTS="-i eth1"' # Assuming eth1 is the internal network 192.168.50.x
+  notify: restart knockd

@@ -1,0 +1,16 @@
+---
+- name: Include DHCP server configuration
+  include_tasks: dhcp.yml
+  tags: dhcp
+
+- name: Include HTTP server configuration
+  include_tasks: http.yml
+  tags: http
+
+- name: Include TFTP server configuration
+  include_tasks: tftp.yml
+  tags: tftp
+
+- name: Include autoinstall configuration
+  include_tasks: autoinstall.yml
+  tags: autoinstall

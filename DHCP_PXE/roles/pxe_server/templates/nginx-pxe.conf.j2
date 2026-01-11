@@ -1,0 +1,31 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    
+    server_name pxeserver;
+    
+    # Ubuntu repository
+    location /ubuntu {
+        alias {{ ubuntu_web_path }};
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+    
+    # Autoinstall files
+    location /autoinstall {
+        alias {{ autoinstall_path }};
+        autoindex on;
+        default_type text/plain;
+    }
+    
+    # Root location
+    location / {
+        root /var/www/html;
+        autoindex on;
+    }
+    
+    # Logging
+    access_log /var/log/nginx/pxe-access.log;
+    error_log /var/log/nginx/pxe-error.log;
+}

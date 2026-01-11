@@ -1,0 +1,76 @@
+---
+- name: Install TFTP server and signed bootloaders
+  apt:
+    name:
+      - tftpd-hpa
+      - shim-signed
+      - grub-efi-amd64-signed
+    state: present
+
+- name: Create TFTP root directory
+  file:
+    path: "{{ tftp_root }}"
+    state: directory
+    owner: tftp
+    group: tftp
+    mode: '0755'
+
+- name: Create GRUB directory in TFTP root
+  file:
+    path: "{{ tftp_root }}/grub"
+    state: directory
+    owner: tftp
+    group: tftp
+    mode: '0755'
+
+- name: Configure TFTP server
+  lineinfile:
+    path: /etc/default/tftpd-hpa
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^TFTP_DIRECTORY=', line: 'TFTP_DIRECTORY="{{ tftp_root }}"' }
+    - { regexp: '^TFTP_OPTIONS=', line: 'TFTP_OPTIONS="--secure --create"' }
+  notify: restart tftp
+
+- name: Copy shimx64.efi.signed to TFTP root
+  copy:
+    src: "{{ shim_source_path }}"
+    dest: "{{ tftp_root }}/bootx64.efi"
+    remote_src: yes
+    mode: '0644'
+
+- name: Copy grubnetx64.efi.signed to TFTP root
+  copy:
+    src: "{{ grub_source_path }}"
+    dest: "{{ tftp_root }}/grubx64.efi"
+    remote_src: yes
+    mode: '0644'
+
+- name: Copy Ubuntu kernel from ISO
+  copy:
+    src: "{{ kernel_source_path }}"
+    dest: "{{ tftp_root }}/linux"
+    remote_src: yes
+    mode: '0644'
+
+- name: Copy Ubuntu initrd from ISO
+  copy:
+    src: "{{ initrd_source_path }}"
+    dest: "{{ tftp_root }}/initrd.gz"
+    remote_src: yes
+    mode: '0644'
+
+- name: Create GRUB configuration
+  template:
+    src: grub.cfg.j2
+    dest: "{{ tftp_root }}/grub/grub.cfg"
+    owner: tftp
+    group: tftp
+    mode: '0644'
+
+- name: Enable and start TFTP server
+  systemd:
+    name: tftpd-hpa
+    enabled: yes
+    state: started

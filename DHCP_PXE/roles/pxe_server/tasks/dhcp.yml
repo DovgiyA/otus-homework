@@ -1,0 +1,36 @@
+---
+- name: Install ISC DHCP server
+  apt:
+    name: isc-dhcp-server
+    state: present
+    update_cache: yes
+
+- name: Configure DHCP server for PXE boot
+  template:
+    src: dhcpd.conf.j2
+    dest: /etc/dhcp/dhcpd.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart dhcp
+
+- name: Detect interface for PXE network
+  set_fact:
+    pxe_interface: "{{ item }}"
+  loop: "{{ ansible_interfaces }}"
+  when: 
+    - hostvars[inventory_hostname]['ansible_' + item]['ipv4'] is defined
+    - hostvars[inventory_hostname]['ansible_' + item]['ipv4']['address'] == pxe_server_ip
+
+- name: Configure DHCP server to listen on correct interface
+  lineinfile:
+    path: /etc/default/isc-dhcp-server
+    regexp: '^INTERFACESv4='
+    line: 'INTERFACESv4="{{ pxe_interface }}"'
+  notify: restart dhcp
+
+- name: Enable and start DHCP server
+  systemd:
+    name: isc-dhcp-server
+    enabled: yes
+    state: started

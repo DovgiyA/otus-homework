@@ -1,0 +1,7 @@
+---
+- name: Configure PXE Server for Ubuntu 24 Network Boot
+  hosts: all
+  become: yes
+  
+  roles:
+    - pxe_server

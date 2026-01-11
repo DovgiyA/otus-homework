@@ -1,0 +1,39 @@
+---
+- name: Install required packages for password hashing
+  apt:
+    name:
+      - whois
+      - python3-passlib
+    state: present
+
+- name: Create autoinstall directory
+  file:
+    path: "{{ autoinstall_path }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Generate password hash for autoinstall user
+  shell: mkpasswd --method=SHA-512 "{{ autoinstall_password }}"
+  register: password_hash
+  changed_when: false
+  no_log: true
+
+- name: Create user-data file for autoinstall
+  template:
+    src: user-data.j2
+    dest: "{{ autoinstall_path }}/user-data"
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Create meta-data file for autoinstall
+  copy:
+    content: |
+      instance-id: ubuntu-client-01
+      local-hostname: {{ autoinstall_hostname }}
+    dest: "{{ autoinstall_path }}/meta-data"
+    owner: www-data
+    group: www-data
+    mode: '0644'

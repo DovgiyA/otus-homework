@@ -1,0 +1,17 @@
+---
+# Handlers for pxe_server role
+
+- name: restart dhcp
+  systemd:
+    name: isc-dhcp-server
+    state: restarted
+
+- name: restart tftp
+  systemd:
+    name: tftpd-hpa
+    state: restarted
+
+- name: restart nginx
+  systemd:
+    name: nginx
+    state: restarted

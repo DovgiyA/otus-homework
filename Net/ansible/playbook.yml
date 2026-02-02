@@ -1,0 +1,15 @@
+---
+- name: Configure Routers with Knocking
+  hosts: routers
+  roles:
+    - knocking
+
+- name: Configure Web Server
+  hosts: webservers
+  roles:
+    - web
+
+- name: Configure NAT Forwarding
+  hosts: inetRouter2
+  roles:
+    - nat_forwarding

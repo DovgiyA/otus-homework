@@ -1,0 +1,6 @@
+---
+- name: restart nftables
+  become: true
+  service:
+    name: nftables
+    state: restarted

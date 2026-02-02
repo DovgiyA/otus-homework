@@ -1,0 +1,29 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-20.04"
+
+  # Router 1
+  config.vm.define "router1" do |router1|
+    router1.vm.hostname = "router1"
+    router1.vm.network "private_network", virtualbox__intnet: "net12", ip: "192.168.10.1"
+    router1.vm.network "private_network", virtualbox__intnet: "net13", ip: "192.168.30.1"
+  end
+
+  # Router 2
+  config.vm.define "router2" do |router2|
+    router2.vm.hostname = "router2"
+    router2.vm.network "private_network", virtualbox__intnet: "net12", ip: "192.168.10.2"
+    router2.vm.network "private_network", virtualbox__intnet: "net23", ip: "192.168.20.2"
+  end
+
+  # Router 3
+  config.vm.define "router3" do |router3|
+    router3.vm.hostname = "router3"
+    router3.vm.network "private_network", virtualbox__intnet: "net13", ip: "192.168.30.3"
+    router3.vm.network "private_network", virtualbox__intnet: "net23", ip: "192.168.20.3"
+  end
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "512"
+    vb.cpus = 1
+  end
+end

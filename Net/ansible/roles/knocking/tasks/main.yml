@@ -1,0 +1,47 @@
+---
+- name: Install nftables on inetRouter
+  become: true
+  package:
+    name: nftables
+    state: present
+  when: inventory_hostname == 'inetRouter'
+
+- name: Deploy nftables config
+  become: true
+  copy:
+    src: nftables.conf
+    dest: /etc/nftables.conf
+    mode: '0644'
+  notify: restart nftables
+  when: inventory_hostname == 'inetRouter'
+
+- name: Ensure nftables is enabled and running
+  become: true
+  service:
+    name: nftables
+    state: started
+    enabled: true
+  when: inventory_hostname == 'inetRouter'
+
+- name: Create knock script on centralRouter
+  become: true
+  copy:
+    dest: /usr/local/bin/knock.sh
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      HOST=$1
+      [ -z "$HOST" ] && HOST="192.168.255.1"
+      for port in 123 234 345 456; do
+        hping3 -S -p $port -c 1 $HOST 2>/dev/null
+        sleep 0.1
+      done
+      echo "Knock sequence sent to $HOST"
+  when: inventory_hostname == 'centralRouter'
+
+- name: Install hping3 on centralRouter
+  become: true
+  package:
+    name: hping3
+    state: present
+  when: inventory_hostname == 'centralRouter'

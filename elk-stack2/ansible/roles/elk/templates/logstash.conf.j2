@@ -1,0 +1,32 @@
+input {
+  beats {
+    port => 5044
+  }
+  syslog {
+    port => 5140
+  }
+}
+
+filter {
+  if [type] == "syslog" {
+    grok {
+      match => { "message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}" }
+      add_field => [ "received_at", "%{@timestamp}" ]
+      add_field => [ "received_from", "%{host}" ]
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["localhost:9200"]
+    index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}" 
+  }
+  # For syslog/nginx logs, we might want a different index or use the default 'logstash-*'
+  if [type] == "syslog" {
+      elasticsearch {
+        hosts => ["localhost:9200"]
+        index => "syslog-%{+YYYY.MM.dd}"
+      }
+  }
+}

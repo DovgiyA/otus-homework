@@ -1,0 +1,8 @@
+router_id: 3.3.3.3
+interfaces:
+  - name: eth1
+    ip: 192.168.30.3/24
+    ospf_cost: 100
+  - name: eth2
+    ip: 192.168.20.3/24
+    ospf_cost: 10

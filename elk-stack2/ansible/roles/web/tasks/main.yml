@@ -1,0 +1,65 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+
+- name: Configure Nginx Global Settings
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+  notify: restart nginx
+
+- name: Install Auditd
+  apt:
+    name: auditd
+    state: present
+
+- name: Configure Audit Rules for Nginx
+  lineinfile:
+    path: /etc/audit/rules.d/audit.rules
+    line: "-w /etc/nginx -p wa -k nginx_conf"
+  notify: restart auditd
+
+- name: Add Elastic GPG Key (Web)
+  apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Add Elastic Source List (Web)
+  apt_repository:
+    repo: "deb https://artifacts.elastic.co/packages/7.x/apt stable main"
+    state: present
+
+- name: Install Filebeat
+  apt:
+    name: filebeat
+    state: present
+
+- name: Configure Filebeat
+  template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+  notify: restart filebeat
+
+- name: Install Auditbeat
+  apt:
+    name: auditbeat
+    state: present
+
+- name: Configure Auditbeat
+  template:
+    src: auditbeat.yml.j2
+    dest: /etc/auditbeat/auditbeat.yml
+  notify: restart auditbeat
+
+- name: Enable Services (Web)
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  with_items:
+    - nginx
+    - auditd
+    - filebeat
+    - auditbeat

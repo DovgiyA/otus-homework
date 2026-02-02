@@ -1,0 +1,31 @@
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+	worker_connections 768;
+}
+
+http {
+	sendfile on;
+	tcp_nopush on;
+	tcp_nodelay on;
+	keepalive_timeout 65;
+	types_hash_max_size 2048;
+
+	include /etc/nginx/mime.types;
+	default_type application/octet-stream;
+
+    # Logging Settings
+    # Remote logging to Logstash (syslog input)
+    # Access logs: Remote ONLY
+    access_log syslog:server=192.168.56.11:5140,tag=nginx_access;
+    
+    # Error logs: Local AND Remote (Criticals are usually in error logs)
+    error_log /var/log/nginx/error.log;
+    error_log syslog:server=192.168.56.11:5140,tag=nginx_error;
+
+	include /etc/nginx/conf.d/*.conf;
+	include /etc/nginx/sites-enabled/*;
+}

@@ -1,0 +1,27 @@
+auditbeat.modules:
+- module: auditd
+  audit_rule_files: [ '${path.config}/audit.rules.d/*.conf' ]
+  audit_rules: |
+    -w /etc/nginx -p wa -k nginx_conf
+
+- module: file_integrity
+  paths:
+  - /bin
+  - /usr/bin
+  - /sbin
+  - /usr/sbin
+  - /etc
+
+- module: system
+  datasets:
+    - package # Installed, updated, and removed packages
+    - state   # System-wide statistics
+    - process # Started and stopped processes
+    - socket  # Opened and closed sockets
+    - user    # User information
+    - login   # Login information
+  period: 1m     # The frequency at which the datasets check for changes or collect statistics
+  state.period: 12h
+
+output.logstash:
+  hosts: ["192.168.56.11:5044"]

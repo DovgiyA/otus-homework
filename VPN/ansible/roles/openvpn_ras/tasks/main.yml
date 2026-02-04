@@ -1,0 +1,46 @@
+---
+- name: Install OpenVPN and Easy-RSA
+  apt:
+    name:
+      - openvpn
+      - easy-rsa
+    state: present
+    update_cache: yes
+
+- name: Initialize PKI
+  shell: |
+    make-cadir /etc/openvpn/easy-rsa
+    cd /etc/openvpn/easy-rsa
+    ./easyrsa init-pki
+    ./easyrsa --batch build-ca nopass
+    ./easyrsa --batch gen-req server nopass
+    ./easyrsa --batch sign-req server server
+    ./easyrsa --batch gen-dh
+    ./easyrsa --batch gen-req client1 nopass
+    ./easyrsa --batch sign-req client client1
+    openvpn --genkey --secret ta.key
+  args:
+    creates: /etc/openvpn/easy-rsa/pki/ca.crt
+
+- name: Copy keys to OpenVPN directory
+  copy:
+    src: "/etc/openvpn/easy-rsa/pki/{{ item.src }}"
+    dest: "/etc/openvpn/{{ item.dest }}"
+    remote_src: yes
+  loop:
+    - { src: "ca.crt", dest: "ca.crt" }
+    - { src: "issued/server.crt", dest: "server.crt" }
+    - { src: "private/server.key", dest: "server.key" }
+    - { src: "dh.pem", dest: "dh.pem" }
+    - { src: "../ta.key", dest: "ta.key" }
+
+- name: Configure OpenVPN server
+  template:
+    src: server.conf.j2
+    dest: /etc/openvpn/server.conf
+
+- name: Start OpenVPN server
+  systemd:
+    name: openvpn@server
+    state: started
+    enabled: yes

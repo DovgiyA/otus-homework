@@ -1,0 +1,29 @@
+---
+- name: Configure VPN Lab
+  hosts: all
+  become: yes
+  tasks:
+    - name: Ensure gnutls-bin is installed (needed for ocserv/certtool)
+      apt:
+        name: gnutls-bin
+        state: present
+        update_cache: yes
+      when: "'ocserv' in group_names"
+
+- name: Task 1 - OpenVPN P2P
+  hosts: vpn_p2p
+  become: yes
+  roles:
+    - openvpn_p2p
+
+- name: Task 2 - OpenVPN RAS
+  hosts: vpn_ras
+  become: yes
+  roles:
+    - openvpn_ras
+
+- name: Task 3 - ocserv
+  hosts: ocserv
+  become: yes
+  roles:
+    - ocserv

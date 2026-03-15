@@ -1,0 +1,26 @@
+---
+- name: Configure bond via netplan
+  copy:
+    content: |
+      network:
+        version: 2
+        renderer: networkd
+        ethernets:
+          {{ bond_slave1 }}:
+            dhcp4: false
+          {{ bond_slave2 }}:
+            dhcp4: false
+        bonds:
+          bond0:
+            interfaces:
+              - {{ bond_slave1 }}
+              - {{ bond_slave2 }}
+            addresses:
+              - {{ bond_ip }}/24
+            parameters:
+              mode: active-backup
+              mii-monitor-interval: 100
+              primary: {{ bond_slave1 }}
+    dest: /etc/netplan/60-bond.yaml
+    mode: '0600'
+  notify: apply netplan

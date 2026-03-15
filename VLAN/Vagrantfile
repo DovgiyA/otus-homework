@@ -1,0 +1,69 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-24.04"
+  config.vm.provider :vmware_desktop do |vmware|
+    vmware.gui = true
+    vmware.cpus = 2
+    vmware.vmx["ethernet0.virtualdev"] = "vmxnet3"
+    vmware.ssh_info_public = true
+    vmware.linked_clone = false
+  end
+
+  # inetRouter - внешний роутер с bond
+  config.vm.define "inetRouter" do |inet|
+    inet.vm.hostname = "inetRouter"
+    # Bond interfaces
+    inet.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet2"
+    inet.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet3"
+  end
+
+  # centralRouter - центральный роутер с bond и VLAN
+  config.vm.define "centralRouter" do |router|
+    router.vm.hostname = "centralRouter"
+    # Bond interfaces to inetRouter
+    router.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet2"
+    router.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet3"
+    # Trunk interface for VLANs
+    router.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet4"
+  end
+
+  # testClient1 - VLAN 10
+  config.vm.define "testClient1" do |client1|
+    client1.vm.hostname = "testClient1"
+    client1.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet4"
+  end
+
+  # testClient2 - VLAN 20
+  config.vm.define "testClient2" do |client2|
+    client2.vm.hostname = "testClient2"
+    client2.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet4"
+  end
+
+  # testServer1 - VLAN 10
+  config.vm.define "testServer1" do |server1|
+    server1.vm.hostname = "testServer1"
+    server1.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet4"
+  end
+
+  # testServer2 - VLAN 20
+  config.vm.define "testServer2" do |server2|
+    server2.vm.hostname = "testServer2"
+    server2.vm.network "private_network", auto_config: false, vmware__vmnet: "vmnet4"
+  end
+
+  # Ansible provisioner (запускается после поднятия всех VM)
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "ansible/playbook.yml"
+    ansible.verbose = "v"
+    ansible.groups = {
+      "routers"  => ["inetRouter", "centralRouter"],
+      "clients"  => ["testClient1", "testClient2"],
+      "servers"  => ["testServer1", "testServer2"],
+      "bond"     => ["inetRouter", "centralRouter"],
+      "vlan10"   => ["testClient1", "testServer1"],
+      "vlan20"   => ["testClient2", "testServer2"]
+    }
+  end
+end

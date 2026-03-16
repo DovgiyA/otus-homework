@@ -1,0 +1,129 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby Vagrantfile for OTUS Network Lab
+# Simplified for VMware & VirtualBox: uses single network (192.168.200.0/24 on vmnet6)
+
+Vagrant.configure("2") do |config|
+  # Base box configuration
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  
+  # Common configuration
+  config.vm.provider "vmware_desktop" do |vmware|
+    vmware.memory = 1024
+    vmware.cpus = 1
+  end
+  
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 1024
+    vb.cpus = 1
+  end
+
+  # Disable default vagrant NAT route on all machines
+  config.vm.provision "shell", inline: <<-SHELL
+    ip route del default via 10.0.2.2 dev eth0 2>/dev/null || true
+  SHELL
+
+  # ============================================================
+  # TOPOLOGY: Single network (192.168.200.0/24) for all internal
+  # Subnet separation via IP addressing and routing:
+  #   - inetRouter   : 192.168.200.10 (gateway to internet)
+  #   - centralRouter: 192.168.200.11
+  #   - office1Router: 192.168.200.12
+  #   - office2Router: 192.168.200.13
+  #   - centralServer: 192.168.200.21
+  #   - office1Server: 192.168.200.22
+  #   - office2Server: 192.168.200.23
+  # ============================================================
+
+  # inetRouter - gateway to internet
+  config.vm.define "inetRouter" do |router|
+    router.vm.hostname = "inetRouter"
+    router.vm.network "private_network",
+      ip: "192.168.200.10",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # centralRouter - hub router
+  config.vm.define "centralRouter" do |router|
+    router.vm.hostname = "centralRouter"
+    router.vm.network "private_network",
+      ip: "192.168.200.11",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # office1Router
+  config.vm.define "office1Router" do |router|
+    router.vm.hostname = "office1Router"
+    router.vm.network "private_network",
+      ip: "192.168.200.12",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # office2Router
+  config.vm.define "office2Router" do |router|
+    router.vm.hostname = "office2Router"
+    router.vm.network "private_network",
+      ip: "192.168.200.13",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # centralServer
+  config.vm.define "centralServer" do |server|
+    server.vm.hostname = "centralServer"
+    server.vm.network "private_network",
+      ip: "192.168.200.21",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # office1Server
+  config.vm.define "office1Server" do |server|
+    server.vm.hostname = "office1Server"
+    server.vm.network "private_network",
+      ip: "192.168.200.22",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # office2Server
+  config.vm.define "office2Server" do |server|
+    server.vm.hostname = "office2Server"
+    server.vm.network "private_network",
+      ip: "192.168.200.23",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "internal-net",
+      vmware__network_name: "vmnet6"
+  end
+
+  # Run Ansible provisioning
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "ansible/playbooks/site.yml"
+    ansible.compatibility_mode = "2.0"
+    ansible.groups = {
+      "routers" => ["inetRouter", "centralRouter", "office1Router", "office2Router"],
+      "servers" => ["centralServer", "office1Server", "office2Server"],
+      "office1" => ["office1Router", "office1Server"],
+      "office2" => ["office2Router", "office2Server"],
+      "central" => ["centralRouter", "centralServer"]
+    }
+    ansible.extra_vars = {
+      inet_router_ip: "192.168.200.10",
+      central_router_ip: "192.168.200.11",
+      office1_router_ip: "192.168.200.12",
+      office2_router_ip: "192.168.200.13",
+      central_server_ip: "192.168.200.21",
+      office1_server_ip: "192.168.200.22",
+      office2_server_ip: "192.168.200.23"
+    }
+  end
+end

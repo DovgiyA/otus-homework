@@ -1,0 +1,79 @@
+---
+# Router role - IP forwarding, NAT, and simple routing
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_set: yes
+    reload: yes
+
+- name: Enable NAT MASQUERADE on inetRouter
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: eth0
+    jump: MASQUERADE
+    state: present
+  when: inventory_hostname == 'inetRouter'
+
+- name: Install iptables-persistent to save iptables rules
+  apt:
+    name: iptables-persistent
+    state: present
+    update_cache: yes
+
+- name: Save iptables rules permanently
+  shell: |
+    iptables-save > /etc/iptables/rules.v4
+  when: inventory_hostname == 'inetRouter'
+  changed_when: false
+
+# All routers use inetRouter as default gateway
+- name: Set default route via inetRouter (non-inetRouter routers)
+  shell: |
+    ip route del default 2>/dev/null || true
+    ip route add default via {{ inet_router_ip }} dev eth1
+  when: inventory_hostname != 'inetRouter'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Create route persistence script (non-inetRouter routers)
+  copy:
+    content: |
+      #!/bin/bash
+      ip route del default 2>/dev/null || true
+      ip route add default via {{ inet_router_ip }} dev eth1
+    dest: /usr/local/sbin/restore-routes
+    mode: '0755'
+    owner: root
+    group: root
+  when: inventory_hostname != 'inetRouter'
+
+- name: Create systemd service for route persistence
+  copy:
+    content: |
+      [Unit]
+      Description=Restore static routes
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/restore-routes
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/restore-routes.service
+    mode: '0644'
+    owner: root
+    group: root
+  when: inventory_hostname != 'inetRouter'
+
+- name: Enable route persistence service
+  systemd:
+    name: restore-routes
+    enabled: yes
+    daemon_reload: yes
+  when: inventory_hostname != 'inetRouter'

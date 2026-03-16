@@ -1,0 +1,37 @@
+---
+# Common playbook - update packages and install basic tools
+- name: Apply common configuration
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install common packages
+      apt:
+        name:
+          - net-tools
+          - iproute2
+          - iptables
+          - iputils-ping
+          - traceroute
+          - curl
+          - wget
+        state: present
+
+    - name: Remove default NAT route (Vagrant eth0)
+      shell: |
+        ip route del default via 10.0.2.2 dev eth0 2>/dev/null || true
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Ensure ip forwarding is disabled on servers
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "0"
+        state: present
+        sysctl_set: yes
+        reload: yes
+      when: "'servers' in group_names"

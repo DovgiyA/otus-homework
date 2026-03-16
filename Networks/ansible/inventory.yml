@@ -1,0 +1,37 @@
+---
+# Ansible Inventory for OTUS Network Lab
+# Vagrant automatically provides correct SSH connections for these hostnames
+all:
+  vars:
+    ansible_user: vagrant
+    ansible_connection: ssh
+    ansible_ssh_private_key_file: .vagrant/machines/default/virtualbox/private_key
+
+  children:
+    routers:
+      hosts:
+        inetRouter:
+        centralRouter:
+        office1Router:
+        office2Router:
+        
+    servers:
+      hosts:
+        centralServer:
+        office1Server:
+        office2Server:
+        
+    office1:
+      hosts:
+        office1Router:
+        office1Server:
+    
+    office2:
+      hosts:
+        office2Router:
+        office2Server:
+
+    central:
+      hosts:
+        centralRouter:
+        centralServer:

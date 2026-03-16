@@ -1,0 +1,15 @@
+[Match]
+Name=eth0
+
+[Route]
+Destination=0.0.0.0/0
+Gateway=192.168.253.1
+Metric=100
+
+[Route]
+Destination=192.168.2.0/26
+Gateway=192.168.253.1
+
+[Route]
+Destination=192.168.255.0/24
+Gateway=192.168.253.1

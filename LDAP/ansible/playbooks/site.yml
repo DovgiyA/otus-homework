@@ -1,0 +1,8 @@
+- name: FreeIPA server setup
+  import_playbook: server/freeipa-install.yml
+
+- name: FreeIPA client enrollment
+  import_playbook: client/freeipa-client-install.yml
+
+- name: LDAP SSH keys setup
+  import_playbook: client/ssh-keys-setup.yml

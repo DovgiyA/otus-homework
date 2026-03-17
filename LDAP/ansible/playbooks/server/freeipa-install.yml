@@ -1,0 +1,84 @@
+- name: Install and configure FreeIPA server
+  hosts: ipa_server
+  become: true
+  vars:
+    ipa_domain: ldap.local
+    ipa_realm: LDAP.LOCAL
+    ipa_server_fqdn: ipa-server.ldap.local
+    ipa_server_ip: 172.16.1.10
+    ipa_admin_password: AdminPassw0rd!
+    ipa_dm_password: DirManagerPassw0rd!
+    ipa_firewall_ports:
+      - 80/tcp
+      - 443/tcp
+      - 389/tcp
+      - 636/tcp
+      - 88/tcp
+      - 88/udp
+      - 464/tcp
+      - 464/udp
+      - 123/udp
+      - 53/tcp
+      - 53/udp
+  tasks:
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - freeipa-server
+          - freeipa-server-dns
+          - firewalld
+        state: present
+
+    - name: Ensure firewalld is enabled and started
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open FreeIPA firewall ports
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: "{{ ipa_firewall_ports }}"
+
+    - name: Ensure hostname resolves to correct IP (not loopback)
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "{{ ipa_server_ip }} {{ ipa_server_fqdn }} {{ ipa_server_fqdn.split('.')[0] }}"
+        regexp: ".*{{ ipa_server_fqdn }}.*"
+        state: present
+
+    - name: Check if FreeIPA is fully configured (service running)
+      ansible.builtin.shell: systemctl is-active ipa.service 2>/dev/null
+      register: ipa_service_status
+      changed_when: false
+      failed_when: false
+
+    - name: Check if IPA config file exists
+      ansible.builtin.stat:
+        path: /etc/ipa/default.conf
+      register: ipa_config_file
+
+    - name: Uninstall partial/broken FreeIPA if service not running but config exists
+      ansible.builtin.command: ipa-server-install --uninstall -U
+      when: ipa_service_status.rc != 0 and ipa_config_file.stat.exists
+      changed_when: true
+      failed_when: false
+
+    - name: Install FreeIPA server (unattended)
+      ansible.builtin.command: >-
+        ipa-server-install
+        --unattended
+        --realm {{ ipa_realm }}
+        --domain {{ ipa_domain }}
+        --hostname {{ ipa_server_fqdn }}
+        --ip-address {{ ipa_server_ip }}
+        --setup-dns
+        --forwarder 8.8.8.8
+        --no-ntp
+        --ds-password {{ ipa_dm_password }}
+        --admin-password {{ ipa_admin_password }}
+      when: ipa_service_status.rc != 0
+      changed_when: true

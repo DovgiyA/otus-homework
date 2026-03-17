@@ -1,0 +1,49 @@
+Vagrant.configure("2") do |config|
+  config.vm.box_check_update = false
+
+  config.vm.define "ipa-server" do |server|
+    server.vm.box = "almalinux/9"
+    server.vm.hostname = "ipa-server.ldap.local"
+    server.vm.network "private_network", ip: "172.16.1.10"
+
+    server.vm.provider "vmware_desktop" do |v|
+      v.vmx["displayName"] = "ipa-server"
+      v.vmx["memsize"] = "4096"
+      v.vmx["numvcpus"] = "2"
+      v.allowlist_verified = true
+    end
+
+    server.vm.synced_folder "./ansible", "/vagrant/ansible"
+
+    server.vm.provision "shell", inline: <<-SHELL
+      CON=$(nmcli -t -f NAME,DEVICE con show | grep eth1 | cut -d: -f1)
+      if [ -n "$CON" ]; then
+        nmcli con mod "$CON" ipv4.addresses 172.16.1.10/24 ipv4.method manual
+        nmcli con up "$CON"
+      fi
+    SHELL
+  end
+
+  config.vm.define "ldap-client" do |client|
+    client.vm.box = "almalinux/9"
+    client.vm.hostname = "ldap-client.ldap.local"
+    client.vm.network "private_network", ip: "172.16.1.11"
+
+    client.vm.provider "vmware_desktop" do |v|
+      v.vmx["displayName"] = "ldap-client"
+      v.vmx["memsize"] = "2048"
+      v.vmx["numvcpus"] = "2"
+      v.allowlist_verified = true
+    end
+
+    client.vm.synced_folder "./ansible", "/vagrant/ansible"
+
+    client.vm.provision "shell", inline: <<-SHELL
+      CON=$(nmcli -t -f NAME,DEVICE con show | grep eth1 | cut -d: -f1)
+      if [ -n "$CON" ]; then
+        nmcli con mod "$CON" ipv4.addresses 172.16.1.11/24 ipv4.method manual
+        nmcli con up "$CON"
+      fi
+    SHELL
+  end
+end

@@ -1,0 +1,47 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = "almalinux/9"
+
+  config.vm.provision "ansible" do |ansible|
+    ansible.verbose = "vvv"
+    ansible.playbook = "provisioning/playbook.yml"
+    ansible.force_remote_user = true
+    ansible.extra_vars = {
+      ansible_python_interpreter: "/usr/bin/python3.9"
+    }
+  end
+
+  config.vm.provider "vmware_fusion" do |v|
+    v.vmx["memsize"] = "1024"
+    v.vmx["numvcpus"] = "2"
+    # Use existing vmnet2 instead of creating new one
+    v.vmx["ethernet0.virtualdev"] = "vmxnet3"
+    v.vmx["ethernet0.present"] = "TRUE"
+    v.vmx["ethernet1.virtualdev"] = "vmxnet3"
+    v.vmx["ethernet1.present"] = "TRUE"
+    v.vmx["ethernet1.networkname"] = "vmnet2"
+  end
+
+  config.vm.define "ns01" do |ns01|
+    ns01.vm.network "private_network", ip: "192.168.50.10", vmware__adapter: 2, vmware__netname: "vmnet2"
+    ns01.vm.hostname = "ns01"
+  end
+
+  config.vm.define "ns02" do |ns02|
+    ns02.vm.network "private_network", ip: "192.168.50.11", vmware__adapter: 2, vmware__netname: "vmnet2"
+    ns02.vm.hostname = "ns02"
+  end
+
+  config.vm.define "client" do |client|
+    client.vm.network "private_network", ip: "192.168.50.15", vmware__adapter: 2, vmware__netname: "vmnet2"
+    client.vm.hostname = "client"
+  end
+
+  config.vm.define "client2" do |client2|
+    client2.vm.network "private_network", ip: "192.168.50.16", vmware__adapter: 2, vmware__netname: "vmnet2"
+    client2.vm.hostname = "client2"
+  end
+
+end

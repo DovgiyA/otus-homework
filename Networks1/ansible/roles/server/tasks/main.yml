@@ -1,0 +1,90 @@
+---
+# Server role - set default gateway and remove Vagrant routes
+
+- name: Ensure NAT route through vagrant interface is removed
+  shell: |
+    ip route del default 2>/dev/null || true
+  ignore_errors: yes
+  changed_when: false
+
+- name: Configure default gateway for centralServer
+  shell: |
+    ip route add default via {{ central_server_gateway }} dev eth1
+  when: inventory_hostname == 'centralServer'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Configure default gateway for office1Server
+  shell: |
+    ip route add default via {{ office1_server_gateway }} dev eth1
+  when: inventory_hostname == 'office1Server'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Configure default gateway for office2Server
+  shell: |
+    ip route add default via {{ office2_server_gateway }} dev eth1
+  when: inventory_hostname == 'office2Server'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Create route persistence script for centralServer
+  copy:
+    content: |
+      #!/bin/bash
+      ip route del default 2>/dev/null || true
+      ip route add default via 192.168.0.1 dev eth1
+    dest: /usr/local/sbin/restore-routes
+    mode: '0755'
+    owner: root
+    group: root
+  when: inventory_hostname == 'centralServer'
+
+- name: Create route persistence script for office1Server
+  copy:
+    content: |
+      #!/bin/bash
+      ip route del default 2>/dev/null || true
+      ip route add default via 192.168.2.1 dev eth1
+    dest: /usr/local/sbin/restore-routes
+    mode: '0755'
+    owner: root
+    group: root
+  when: inventory_hostname == 'office1Server'
+
+- name: Create route persistence script for office2Server
+  copy:
+    content: |
+      #!/bin/bash
+      ip route del default 2>/dev/null || true
+      ip route add default via 192.168.1.1 dev eth1
+    dest: /usr/local/sbin/restore-routes
+    mode: '0755'
+    owner: root
+    group: root
+  when: inventory_hostname == 'office2Server'
+
+- name: Create systemd service for route persistence
+  copy:
+    content: |
+      [Unit]
+      Description=Restore default gateway
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/restore-routes
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/restore-routes.service
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Enable route persistence service
+  systemd:
+    name: restore-routes
+    enabled: yes
+    daemon_reload: yes

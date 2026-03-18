@@ -1,0 +1,17 @@
+# Vagrant files
+.vagrant/
+*.log
+vagrant_ansible_inventory_*
+.vagrant.d/
+
+# Backup files
+*~
+*.bak
+*.swp
+*.swo
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.iml

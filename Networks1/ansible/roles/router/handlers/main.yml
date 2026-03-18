@@ -1,0 +1,7 @@
+---
+# Handlers for router role
+- name: restart networking
+  systemd:
+    name: systemd-networkd
+    state: restarted
+  when: ansible_service_mgr == "systemd"

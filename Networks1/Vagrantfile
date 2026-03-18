@@ -1,0 +1,198 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby Vagrantfile for OTUS Network Lab
+# Multi-network topology with separate subnets for each office and central
+
+Vagrant.configure("2") do |config|
+  # Base box configuration
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  
+  # Common configuration
+  config.vm.provider "vmware_desktop" do |vmware|
+    vmware.memory = 1024
+    vmware.cpus = 1
+  end
+  
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 1024
+    vb.cpus = 1
+  end
+
+  # Disable default vagrant NAT route on all machines
+  config.vm.provision "shell", inline: <<-SHELL
+    ip route del default via 10.0.2.2 dev eth0 2>/dev/null || true
+  SHELL
+
+  # ============================================================
+  # TOPOLOGY: Multi-network architecture
+  # 
+  # Office1 LAN (vmnet6): 192.168.2.0/24
+  #   - office1Router eth1: 192.168.2.1
+  #   - office1Server eth1: 192.168.2.2
+  #
+  # Office2 LAN (vmnet7): 192.168.1.0/24
+  #   - office2Router eth1: 192.168.1.1
+  #   - office2Server eth1: 192.168.1.2
+  #
+  # Central LAN (vmnet8): 192.168.0.0/24
+  #   - centralRouter eth3: 192.168.0.1
+  #   - centralServer eth1: 192.168.0.2
+  #
+  # Office1 <-> Central transit (vmnet9): 192.168.254.0/24
+  #   - office1Router eth2: 192.168.254.2
+  #   - centralRouter eth1: 192.168.254.1
+  #
+  # Office2 <-> Central transit (vmnet10): 192.168.253.0/24
+  #   - office2Router eth2: 192.168.253.2
+  #   - centralRouter eth2: 192.168.253.1
+  #
+  # Central <-> inetRouter transit (vmnet11): 10.0.0.0/24
+  #   - centralRouter eth4: 10.0.0.1
+  #   - inetRouter eth1: 10.0.0.2
+  # ============================================================
+
+  # inetRouter - gateway to internet
+  config.vm.define "inetRouter" do |router|
+    router.vm.hostname = "inetRouter"
+    # eth0: Vagrant NAT (default)
+    # eth1: transit to central (vmnet11)
+    router.vm.network "private_network",
+      ip: "10.0.0.2",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "inet-central",
+      vmware__network_name: "vmnet11"
+  end
+
+  # centralRouter - hub connecting all networks
+  config.vm.define "centralRouter" do |router|
+    router.vm.hostname = "centralRouter"
+    # eth0: Vagrant NAT (default)
+    # eth1: transit to office1 (vmnet9)
+    router.vm.network "private_network",
+      ip: "192.168.254.1",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office1-central",
+      vmware__network_name: "vmnet9"
+    # eth2: transit to office2 (vmnet10)
+    router.vm.network "private_network",
+      ip: "192.168.253.1",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office2-central",
+      vmware__network_name: "vmnet10"
+    # eth3: central local network (vmnet8)
+    router.vm.network "private_network",
+      ip: "192.168.0.1",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "central-local",
+      vmware__network_name: "vmnet8"
+    # eth4: transit to inet (vmnet11)
+    router.vm.network "private_network",
+      ip: "10.0.0.1",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "inet-central",
+      vmware__network_name: "vmnet11"
+  end
+
+  # office1Router
+  config.vm.define "office1Router" do |router|
+    router.vm.hostname = "office1Router"
+    # eth0: Vagrant NAT (default)
+    # eth1: office1 local network (vmnet6)
+    router.vm.network "private_network",
+      ip: "192.168.2.1",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office1-local",
+      vmware__network_name: "vmnet6"
+    # eth2: transit to central (vmnet9)
+    router.vm.network "private_network",
+      ip: "192.168.254.2",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office1-central",
+      vmware__network_name: "vmnet9"
+  end
+
+  # office2Router
+  config.vm.define "office2Router" do |router|
+    router.vm.hostname = "office2Router"
+    # eth0: Vagrant NAT (default)
+    # eth1: office2 local network (vmnet7)
+    router.vm.network "private_network",
+      ip: "192.168.1.1",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office2-local",
+      vmware__network_name: "vmnet7"
+    # eth2: transit to central (vmnet10)
+    router.vm.network "private_network",
+      ip: "192.168.253.2",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office2-central",
+      vmware__network_name: "vmnet10"
+  end
+
+  # centralServer
+  config.vm.define "centralServer" do |server|
+    server.vm.hostname = "centralServer"
+    # eth0: Vagrant NAT (default)
+    # eth1: central local network (vmnet8)
+    server.vm.network "private_network",
+      ip: "192.168.0.2",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "central-local",
+      vmware__network_name: "vmnet8"
+  end
+
+  # office1Server
+  config.vm.define "office1Server" do |server|
+    server.vm.hostname = "office1Server"
+    # eth0: Vagrant NAT (default)
+    # eth1: office1 local network (vmnet6)
+    server.vm.network "private_network",
+      ip: "192.168.2.2",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office1-local",
+      vmware__network_name: "vmnet6"
+  end
+
+  # office2Server
+  config.vm.define "office2Server" do |server|
+    server.vm.hostname = "office2Server"
+    # eth0: Vagrant NAT (default)
+    # eth1: office2 local network (vmnet7)
+    server.vm.network "private_network",
+      ip: "192.168.1.2",
+      netmask: "255.255.255.0",
+      virtualbox__intnet: "office2-local",
+      vmware__network_name: "vmnet7"
+  end
+
+  # Run Ansible provisioning
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "ansible/playbooks/site.yml"
+    ansible.compatibility_mode = "2.0"
+    ansible.groups = {
+      "routers" => ["inetRouter", "centralRouter", "office1Router", "office2Router"],
+      "servers" => ["centralServer", "office1Server", "office2Server"],
+      "office1" => ["office1Router", "office1Server"],
+      "office2" => ["office2Router", "office2Server"],
+      "central" => ["centralRouter", "centralServer"]
+    }
+    ansible.extra_vars = {
+      inet_router_ip: "10.0.0.2",
+      inet_router_eth1: "10.0.0.2",
+      central_router_ip: "192.168.0.1",
+      central_router_eth1: "192.168.254.1",
+      central_router_eth2: "192.168.253.1",
+      central_router_eth4: "10.0.0.1",
+      office1_router_ip: "192.168.2.1",
+      office1_router_eth2: "192.168.254.2",
+      office2_router_ip: "192.168.1.1",
+      office2_router_eth2: "192.168.253.2",
+      central_server_ip: "192.168.0.2",
+      central_server_gateway: "192.168.0.1",
+      office1_server_ip: "192.168.2.2",
+      office1_server_gateway: "192.168.2.1",
+      office2_server_ip: "192.168.1.2",
+      office2_server_gateway: "192.168.1.1"
+    }
+  end
+end

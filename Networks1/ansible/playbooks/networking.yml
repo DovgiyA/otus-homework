@@ -1,0 +1,13 @@
+---
+# Networking playbook - configure routers and servers
+- name: Configure routers
+  hosts: routers
+  become: yes
+  roles:
+    - router
+
+- name: Configure servers
+  hosts: servers
+  become: yes
+  roles:
+    - server

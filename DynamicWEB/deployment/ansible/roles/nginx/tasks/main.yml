@@ -1,0 +1,52 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+
+- name: Create SSL directory
+  file:
+    path: /etc/nginx/ssl
+    state: directory
+    mode: "0700"
+
+- name: Generate self-signed SSL certificate
+  command: >
+    openssl req -x509 -nodes -days 365
+    -newkey rsa:2048
+    -keyout /etc/nginx/ssl/librespeed.key
+    -out /etc/nginx/ssl/librespeed.crt
+    -subj "/C=RU/ST=Moscow/L=Moscow/O=Dev/CN={{ server_ip }}"
+  args:
+    creates: /etc/nginx/ssl/librespeed.crt
+
+- name: Remove default Nginx site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload Nginx
+
+- name: Deploy LibreSpeed Nginx config
+  template:
+    src: librespeed.conf.j2
+    dest: /etc/nginx/sites-available/librespeed.conf
+    mode: "0644"
+  notify: Reload Nginx
+
+- name: Enable LibreSpeed Nginx site
+  file:
+    src: /etc/nginx/sites-available/librespeed.conf
+    dest: /etc/nginx/sites-enabled/librespeed.conf
+    state: link
+  notify: Reload Nginx
+
+- name: Test Nginx configuration
+  command: nginx -t
+  register: nginx_test
+  changed_when: false
+
+- name: Enable and start Nginx
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes

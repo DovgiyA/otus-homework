@@ -1,0 +1,5 @@
+---
+- name: Restart PostgreSQL Replica
+  systemd:
+    name: postgresql
+    state: restarted

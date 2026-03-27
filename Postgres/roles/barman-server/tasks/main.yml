@@ -1,0 +1,207 @@
+---
+# Настройка Barman — сервер резервного копирования
+
+- name: Install prerequisites for barman
+  apt:
+    name:
+      - gnupg2
+      - wget
+      - python3-psycopg2
+      - acl
+    state: present
+    update_cache: yes
+
+- name: Add PostgreSQL APT repository key
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add PostgreSQL APT repository
+  apt_repository:
+    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install barman and postgresql-client
+  apt:
+    name:
+      - barman
+      - barman-cli
+      - postgresql-client-14
+    state: present
+    update_cache: yes
+
+- name: Deploy barman global configuration
+  template:
+    src: barman.conf.j2
+    dest: /etc/barman.conf
+    owner: barman
+    group: barman
+    mode: '0644'
+
+- name: Ensure barman.d directory exists
+  file:
+    path: /etc/barman.d
+    state: directory
+    owner: barman
+    group: barman
+    mode: '0755'
+
+- name: Deploy barman master server configuration
+  template:
+    src: master.conf.j2
+    dest: /etc/barman.d/master.conf
+    owner: barman
+    group: barman
+    mode: '0644'
+
+- name: Ensure barman home directory exists
+  file:
+    path: /var/lib/barman
+    state: directory
+    owner: barman
+    group: barman
+    mode: '0755'
+
+- name: Ensure barman log directory exists
+  file:
+    path: /var/log/barman
+    state: directory
+    owner: barman
+    group: barman
+    mode: '0755'
+
+# SSH ключи для barman
+- name: Ensure .ssh directory for barman
+  file:
+    path: /var/lib/barman/.ssh
+    state: directory
+    owner: barman
+    group: barman
+    mode: '0700'
+
+- name: Generate SSH key for barman user
+  become: yes
+  become_user: barman
+  openssh_keypair:
+    path: /var/lib/barman/.ssh/id_rsa
+    type: rsa
+    size: 4096
+    state: present
+    force: no
+
+- name: Fetch barman public key
+  become: yes
+  become_user: barman
+  slurp:
+    src: /var/lib/barman/.ssh/id_rsa.pub
+  register: barman_pub_key
+
+# Обмен SSH ключами с мастером
+- name: Add master postgres public key to barman authorized_keys
+  become: yes
+  become_user: barman
+  authorized_key:
+    user: barman
+    key: "{{ hostvars['master']['master_postgres_pub_key'] | default('') }}"
+    state: present
+  when: hostvars['master']['master_postgres_pub_key'] is defined
+
+- name: Add barman public key to master postgres authorized_keys
+  delegate_to: master
+  become: yes
+  become_user: postgres
+  authorized_key:
+    user: postgres
+    key: "{{ barman_pub_key.content | b64decode }}"
+    state: present
+
+- name: Add master to barman known_hosts
+  become: yes
+  become_user: barman
+  shell: |
+    ssh-keyscan -H 192.168.50.11 >> /var/lib/barman/.ssh/known_hosts 2>/dev/null
+  args:
+    creates: /var/lib/barman/.ssh/known_hosts
+
+- name: Add barman to master known_hosts
+  delegate_to: master
+  become: yes
+  become_user: postgres
+  shell: |
+    ssh-keyscan -H 192.168.50.13 >> /var/lib/postgresql/.ssh/known_hosts 2>/dev/null
+  args:
+    creates: /var/lib/postgresql/.ssh/known_hosts
+
+# Создаем .pgpass для barman
+- name: Create pgpass file for barman
+  become: yes
+  become_user: barman
+  copy:
+    content: |
+      192.168.50.11:5432:*:barman:BarmanPass123
+    dest: /var/lib/barman/.pgpass
+    owner: barman
+    group: barman
+    mode: '0600'
+
+# Создаем каталог для WAL-архивов на мастере
+- name: Create WAL archive directory on master
+  delegate_to: master
+  file:
+    path: /var/lib/postgresql/14/archive
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+
+# Инициализация barman
+- name: Run barman cron
+  become: yes
+  become_user: barman
+  command: barman cron
+  changed_when: false
+
+- name: Switch WAL on master
+  become: yes
+  become_user: barman
+  command: barman switch-wal --force --archive master
+  register: switch_wal_result
+  changed_when: false
+  failed_when: false
+
+- name: Run barman check
+  become: yes
+  become_user: barman
+  command: barman check master
+  register: barman_check
+  changed_when: false
+  failed_when: false
+
+- name: Display barman check results
+  debug:
+    var: barman_check.stdout_lines
+  when: barman_check.stdout_lines is defined
+
+# Настройка crontab для резервного копирования каждые 4 дня
+- name: Setup barman cron job - WAL maintenance (every minute)
+  cron:
+    name: "barman cron maintenance"
+    user: barman
+    job: "/usr/bin/barman cron"
+    minute: "*"
+    hour: "*"
+    day: "*"
+    month: "*"
+    weekday: "*"
+
+- name: Setup barman backup job - every 4 days at 03:00
+  cron:
+    name: "barman backup master every 4 days"
+    user: barman
+    job: "/usr/bin/barman backup master --wait 2>&1 | tee -a /var/log/barman/backup.log"
+    minute: "0"
+    hour: "3"
+    day: "*/4"
+    month: "*"
+    weekday: "*"

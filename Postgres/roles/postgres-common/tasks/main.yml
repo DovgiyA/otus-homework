@@ -1,0 +1,36 @@
+---
+# Общая установка PostgreSQL 14
+
+- name: Install prerequisites
+  apt:
+    name:
+      - gnupg2
+      - wget
+      - python3-psycopg2
+      - acl
+    state: present
+    update_cache: yes
+
+- name: Add PostgreSQL APT repository key
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add PostgreSQL APT repository
+  apt_repository:
+    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install PostgreSQL 14
+  apt:
+    name:
+      - postgresql-14
+      - postgresql-client-14
+    state: present
+    update_cache: yes
+
+- name: Ensure PostgreSQL service is enabled
+  systemd:
+    name: postgresql
+    enabled: yes

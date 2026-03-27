@@ -1,0 +1,6 @@
+---
+- name: Configure Barman Backup Server
+  hosts: barman
+  become: true
+  roles:
+    - barman-server

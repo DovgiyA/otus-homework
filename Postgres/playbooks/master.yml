@@ -1,0 +1,7 @@
+---
+- name: Configure PostgreSQL Master
+  hosts: master
+  become: true
+  roles:
+    - postgres-common
+    - postgres-master

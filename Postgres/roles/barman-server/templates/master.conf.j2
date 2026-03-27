@@ -1,0 +1,14 @@
+; Barman configuration for PostgreSQL Master
+; {{ ansible_managed }}
+
+[master]
+description = "PostgreSQL Master Server"
+ssh_command = ssh postgres@192.168.50.11
+conninfo = host=192.168.50.11 user=barman dbname=postgres
+backup_method = rsync
+reuse_backup = link
+backup_directory = /var/lib/barman/master
+archiver = on
+retention_policy = RECOVERY WINDOW OF 14 DAYS
+retention_policy_mode = auto
+wal_retention_policy = main

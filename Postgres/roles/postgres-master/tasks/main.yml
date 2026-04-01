@@ -1,6 +1,12 @@
 ---
 # Настройка PostgreSQL Master
 
+- name: Install barman-cli on master
+  apt:
+    name: barman-cli
+    state: present
+    update_cache: yes
+
 - name: Deploy postgresql.conf for master
   template:
     src: postgresql.conf.j2
@@ -29,6 +35,14 @@
     port: 5432
     delay: 5
     timeout: 30
+
+- name: Create WAL archive directory
+  file:
+    path: /var/lib/postgresql/14/archive
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
 
 - name: Create replication user
   become: yes

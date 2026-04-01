@@ -16,7 +16,8 @@ wal_log_hints = on
 
 # Архивирование WAL
 archive_mode = on
-archive_command = 'cp %p /var/lib/postgresql/14/archive/%f'
+archive_command = 'barman-wal-archive 192.168.50.13 master %p'
+archive_timeout = 300
 
 # Логирование
 logging_collector = on

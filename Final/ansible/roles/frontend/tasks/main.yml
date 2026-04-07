@@ -1,0 +1,101 @@
+---
+# Role: frontend - Nginx reverse proxy + DomainSSL certificate
+
+- name: Install Nginx
+  ansible.builtin.apt:
+    name:
+      - nginx
+    state: present
+
+- name: Create LibreSpeed frontend directory
+  ansible.builtin.file:
+    path: /var/www/speedtest
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Copy LibreSpeed static files to frontend
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "/var/www/speedtest/{{ item.dest }}"
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  loop:
+    - { src: "{{ playbook_dir }}/../../speedtest.js", dest: "speedtest.js" }
+    - { src: "{{ playbook_dir }}/../../speedtest_worker.js", dest: "speedtest_worker.js" }
+    - { src: "{{ playbook_dir }}/../../favicon.ico", dest: "favicon.ico" }
+
+- name: Deploy index.html from backend template
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: /var/www/speedtest/index.html
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+# --- SSL Certificate deployment ---
+
+- name: Create SSL certificate directory
+  ansible.builtin.file:
+    path: "{{ ssl_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Deploy SSL fullchain certificate
+  ansible.builtin.copy:
+    src: ssl/fullchain.pem
+    dest: "{{ ssl_cert_file }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart frontend nginx
+
+- name: Deploy SSL private key
+  ansible.builtin.copy:
+    src: ssl/privkey.pem
+    dest: "{{ ssl_key_file }}"
+    owner: root
+    group: root
+    mode: '0600'
+  notify: restart frontend nginx
+
+- name: Deploy SSL CA chain
+  ansible.builtin.copy:
+    src: ssl/chain.pem
+    dest: "{{ ssl_chain_file }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart frontend nginx
+
+# --- Nginx configuration ---
+
+- name: Deploy Nginx config with SSL
+  ansible.builtin.template:
+    src: nginx-speedtest.conf.j2
+    dest: /etc/nginx/sites-available/speedtest
+    mode: '0644'
+  notify: restart frontend nginx
+
+- name: Enable Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/speedtest
+    dest: /etc/nginx/sites-enabled/speedtest
+    state: link
+  notify: restart frontend nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart frontend nginx
+
+- name: Enable and start Nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: yes
+    state: started

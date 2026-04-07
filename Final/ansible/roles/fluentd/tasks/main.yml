@@ -1,0 +1,68 @@
+---
+# Role: fluentd - Log collector agent on all hosts
+
+- name: Install Fluentd GPG key
+  ansible.builtin.apt_key:
+    url: https://packages.treasuredata.com/GPG-KEY-td-agent
+    state: present
+
+- name: Add Fluentd repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://packages.treasuredata.com/4/ubuntu/jammy/ jammy contrib"
+    state: present
+    filename: td-agent
+
+- name: Install td-agent (Fluentd)
+  ansible.builtin.apt:
+    name: td-agent
+    state: present
+    update_cache: yes
+
+- name: Install Elasticsearch plugin for Fluentd
+  ansible.builtin.command:
+    cmd: /opt/td-agent/bin/fluent-gem install fluent-plugin-elasticsearch --no-document
+  args:
+    creates: /opt/td-agent/lib/ruby/gems/*/gems/fluent-plugin-elasticsearch-*
+  notify: restart td-agent
+
+- name: Deploy Fluentd configuration
+  ansible.builtin.template:
+    src: td-agent.conf.j2
+    dest: /etc/td-agent/td-agent.conf
+    owner: td-agent
+    group: td-agent
+    mode: '0644'
+  notify: restart td-agent
+
+- name: Add td-agent user to required groups
+  ansible.builtin.user:
+    name: td-agent
+    groups:
+      - adm
+      - syslog
+    append: yes
+  notify: restart td-agent
+
+- name: Configure logrotate for Fluentd
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/td-agent
+    content: |
+      /var/log/td-agent/td-agent.log {
+        daily
+        rotate {{ log_retention_days }}
+        compress
+        delaycompress
+        missingok
+        notifempty
+        create 0644 td-agent td-agent
+        postrotate
+          /bin/kill -USR1 $(cat /var/run/td-agent/td-agent.pid 2>/dev/null) 2>/dev/null || true
+        endscript
+      }
+    mode: '0644'
+
+- name: Enable and start td-agent
+  ansible.builtin.systemd:
+    name: td-agent
+    enabled: yes
+    state: started

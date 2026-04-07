@@ -1,0 +1,47 @@
+stages:
+  - deploy
+
+.deploy_template: &deploy_template
+  image: alpine/helm:latest
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+    - chmod 600 ~/.kube/config
+    - export KUBECONFIG=~/.kube/config
+
+deploy_storage_provisioner:
+  stage: deploy
+  <<: *deploy_template
+  script:
+    - helm upgrade --install storage-provisioner ./charts/internal/storage-provisioner
+      --namespace kube-system
+      --create-namespace
+      --wait
+
+deploy_mysql:
+  stage: deploy
+  <<: *deploy_template
+  script:
+    - helm upgrade --install mysql ./charts/internal/mysql
+      --namespace db
+      --create-namespace
+      --wait
+      --set mysql.rootPassword="${MYSQL_ROOT_PASSWORD}"
+      --set mysql.user="${MYSQL_USER:-speedtest}"
+      --set mysql.password="${MYSQL_PASSWORD}"
+      --set mysql.database="${MYSQL_DATABASE:-speedtest_telemetry}"
+      --set persistence.storageClass="${STORAGE_CLASS:-local-path}"
+      --set persistence.size="${STORAGE_SIZE:-1Gi}"
+  needs:
+    - deploy_storage_provisioner
+
+deploy_librespeed:
+  stage: deploy
+  <<: *deploy_template
+  script:
+    - helm upgrade --install librespeed ./charts/librespeed
+      --namespace final
+      --create-namespace
+      --wait
+  needs:
+    - deploy_mysql

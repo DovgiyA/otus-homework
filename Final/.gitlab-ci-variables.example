@@ -1,0 +1,135 @@
+# GitLab CI/CD Variables Example Configuration
+# This file is for documentation purposes only.
+# DO NOT commit actual secrets to the repository.
+# Use GitLab UI: Settings > CI/CD > Variables to set these values.
+
+# ============================================
+# REQUIRED VARIABLES - MUST BE SET
+# ============================================
+
+# Kubernetes Configuration
+# Type: File | Protected: Yes | Masked: No
+# Generate: cat ~/.kube/config | base64 -w 0
+KUBE_CONFIG=<base64-encoded-kubeconfig>
+
+# Database Credentials (MySQL)
+# Type: Variable | Protected: Yes | Masked: Yes
+MYSQL_ROOT_PASSWORD=change-this-root-password-in-production
+
+# Type: Variable | Protected: Yes | Masked: Yes
+MYSQL_PASSWORD=change-this-password-in-production
+
+# Optional: Override default database user
+# Type: Variable | Protected: Yes | Masked: No
+MYSQL_USER=speedtest
+
+# Optional: Override default database name
+# Type: Variable | Protected: Yes | Masked: No
+MYSQL_DATABASE=speedtest_telemetry
+
+# Application Secrets (LibreSpeed)
+# Type: Variable | Protected: Yes | Masked: Yes
+DB_PASSWORD=change-this-password-in-production
+
+# Type: Variable | Protected: Yes | Masked: Yes
+STATS_PASSWORD=change-this-stats-password
+
+# Type: Variable | Protected: Yes | Masked: Yes
+OBFUSCATION_SALT=generate-random-salt-value-here
+
+# Container Registry Credentials
+# Type: Variable | Protected: Yes | Masked: Yes
+REGISTRY_PASSWORD=your-registry-token-or-password
+
+# ============================================
+# OPTIONAL VARIABLES - HAVE DEFAULT VALUES
+# ============================================
+
+# Container Registry Configuration
+# Type: Variable | Protected: No | Masked: No
+REGISTRY_URL=registry.rebrainme.com
+
+# Type: Variable | Protected: No | Masked: No
+REGISTRY_USERNAME=pull-creds
+
+# Image Configuration
+# Type: Variable | Protected: No | Masked: No
+IMAGE_TAG=5.3
+
+# Database Configuration
+# Type: Variable | Protected: No | Masked: No
+DB_HOSTNAME=mysql.db.svc.cluster.local
+
+# Storage Configuration
+# Type: Variable | Protected: No | Masked: No
+STORAGE_CLASS=local-path
+
+# Type: Variable | Protected: No | Masked: No
+STORAGE_SIZE=1Gi
+
+# ============================================
+# SECURITY NOTES
+# ============================================
+
+# 1. NEVER commit actual secrets to this file
+# 2. Use GitLab UI to set actual values
+# 3. Enable "Protected" for production secrets
+# 4. Enable "Masked" for sensitive values
+# 5. Use strong, unique passwords
+# 6. Rotate credentials regularly
+# 7. Use environment-specific variables for dev/staging/prod
+
+# ============================================
+# GENERATING SECURE VALUES
+# ============================================
+
+# Generate random password (32 characters):
+# openssl rand -base64 32
+
+# Generate random salt (hex):
+# openssl rand -hex 16
+
+# Base64 encode kubeconfig:
+# cat ~/.kube/config | base64 -w 0
+
+# ============================================
+# ENVIRONMENT-SPECIFIC VARIABLES
+# ============================================
+
+# For Development:
+# - Use less restrictive passwords
+# - Enable debug logging if needed
+# - Use development-specific image tags
+
+# For Staging:
+# - Use production-like configuration
+# - Separate database instances
+# - Test deployment procedures
+
+# For Production:
+# - Use strong, unique passwords
+# - Enable all security features
+# - Use production-ready image tags
+# - Implement backup and recovery procedures
+# - Enable monitoring and alerting
+
+# ============================================
+# QUICK SETUP COMMANDS
+# ============================================
+
+# Set variables via GitLab CLI (if available):
+# glab ci-variable set --protected --masked MYSQL_PASSWORD "$(openssl rand -base64 32)"
+# glab ci-variable set --protected --masked DB_PASSWORD "$(openssl rand -base64 32)"
+# glab ci-variable set --protected --masked STATS_PASSWORD "$(openssl rand -base64 32)"
+# glab ci-variable set --protected --masked OBFUSCATION_SALT "$(openssl rand -hex 16)"
+# glab ci-variable set --type=file KUBE_CONFIG < ~/.kube/config.base64
+
+# Or use GitLab API:
+# curl --request POST --header "PRIVATE-TOKEN: <your-token>" \
+#   "https://gitlab.rebrainme.com/api/v4/projects/<project-id>/variables" \
+#   --form "key=MYSQL_PASSWORD" \
+#   --form "value=<password>" \
+#   --form "protected=true" \
+#   --form "masked=true"
+
+# See CI_VARIABLES.md for complete documentation

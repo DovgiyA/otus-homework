@@ -1,0 +1,29 @@
+[Unit]
+Description=Prometheus Monitoring System
+Documentation=https://prometheus.io/docs/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --web.console.templates=/etc/prometheus/consoles \
+  --web.console.libraries=/etc/prometheus/console_libraries \
+  --web.listen-address=0.0.0.0:9090 \
+  --web.config.file=/etc/prometheus/web.yml \
+  --web.enable-lifecycle \
+  --storage.tsdb.retention.time=30d
+
+SyslogIdentifier=prometheus
+StandardOutput=append:/var/log/prometheus/prometheus.log
+StandardError=append:/var/log/prometheus/prometheus.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,196 @@
+---
+# Role: postgresql - Primary PostgreSQL server with replication
+
+- name: Install PostgreSQL repository key
+  ansible.builtin.apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add PostgreSQL repository
+  ansible.builtin.apt_repository:
+    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install PostgreSQL {{ postgresql_version }}
+  ansible.builtin.apt:
+    name:
+      - "postgresql-{{ postgresql_version }}"
+      - "postgresql-client-{{ postgresql_version }}"
+      - "postgresql-contrib-{{ postgresql_version }}"
+      - python3-psycopg2
+    state: present
+    update_cache: yes
+
+- name: Ensure PostgreSQL is started
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: yes
+    state: started
+
+- name: Configure postgresql.conf
+  ansible.builtin.template:
+    src: postgresql.conf.j2
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: '0644'
+  notify: restart postgresql
+
+- name: Configure pg_hba.conf
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: '0640'
+  notify: restart postgresql
+
+- name: Restart PostgreSQL to apply config
+  ansible.builtin.meta: flush_handlers
+
+- name: Set postgres user password
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: postgres
+    password: "{{ pg_postgres_password }}"
+    state: present
+
+- name: Create speedtest database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ pg_speedtest_db }}"
+    encoding: UTF-8
+    state: present
+
+- name: Create speedtest user
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ pg_speedtest_user }}"
+    password: "{{ pg_speedtest_password }}"
+    state: present
+
+- name: Grant speedtest user privileges
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    db: "{{ pg_speedtest_db }}"
+    role: "{{ pg_speedtest_user }}"
+    type: database
+    privs: ALL
+    state: present
+
+- name: Create grafana database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ pg_grafana_db }}"
+    encoding: UTF-8
+    state: present
+
+- name: Create grafana user
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ pg_grafana_user }}"
+    password: "{{ pg_grafana_password }}"
+    state: present
+
+- name: Grant grafana user privileges
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    db: "{{ pg_grafana_db }}"
+    role: "{{ pg_grafana_user }}"
+    type: database
+    privs: ALL
+    state: present
+
+- name: Create replication user
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ pg_replicator_user }}"
+    password: "{{ pg_replicator_password }}"
+    role_attr_flags: REPLICATION,LOGIN
+    state: present
+
+- name: Create replication slot
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_slot:
+    name: standby_slot
+    slot_type: physical
+    state: present
+
+- name: Template telemetry SQL schema
+  ansible.builtin.template:
+    src: telemetry_postgresql.sql
+    dest: /tmp/telemetry_postgresql.sql
+    mode: '0644'
+
+- name: Import telemetry schema
+  become: true
+  become_user: postgres
+  ansible.builtin.shell: |
+    psql -d {{ pg_speedtest_db }} -c "SELECT 1 FROM information_schema.tables WHERE table_name = 'speedtest_users'" | grep -q 1 || \
+    psql -d {{ pg_speedtest_db }} -f /tmp/telemetry_postgresql.sql
+  args:
+    executable: /bin/bash
+  register: schema_import
+  changed_when: "'CREATE TABLE' in schema_import.stdout"
+
+- name: Grant speedtest user access to speedtest_users table
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    db: "{{ pg_speedtest_db }}"
+    role: "{{ pg_speedtest_user }}"
+    objs: speedtest_users
+    type: table
+    privs: SELECT,INSERT,UPDATE,DELETE
+    state: present
+
+- name: Grant speedtest user access to sequences
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    db: "{{ pg_speedtest_db }}"
+    role: "{{ pg_speedtest_user }}"
+    objs: speedtest_users_id_seq
+    type: sequence
+    privs: USAGE,SELECT,UPDATE
+    state: present
+
+- name: Create backup directory
+  ansible.builtin.file:
+    path: /var/backups/postgresql
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0750'
+
+- name: Create backup script
+  ansible.builtin.template:
+    src: pg_backup.sh.j2
+    dest: /usr/local/bin/pg_backup.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Setup backup cron job (daily at 2 AM)
+  ansible.builtin.cron:
+    name: "PostgreSQL backup"
+    minute: "0"
+    hour: "2"
+    job: "/usr/local/bin/pg_backup.sh >> /var/log/pg_backup.log 2>&1"
+    user: postgres
+    state: present
+
+- name: Clean up temp SQL file
+  ansible.builtin.file:
+    path: /tmp/telemetry_postgresql.sql
+    state: absent

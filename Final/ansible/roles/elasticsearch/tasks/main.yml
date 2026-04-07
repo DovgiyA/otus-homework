@@ -1,0 +1,103 @@
+---
+# Role: elasticsearch - Single-node Elasticsearch for EFK
+
+- name: Install Elasticsearch GPG key
+  ansible.builtin.apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Remove old Elasticsearch repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://artifacts.elastic.co/packages/8.x/apt stable main"
+    state: absent
+    filename: elastic
+
+- name: Add Elasticsearch repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://mirror.yandex.ru/mirrors/elastic/{{ elasticsearch_version }}/ stable main"
+    state: present
+    filename: elastic
+
+- name: Install Elasticsearch
+  ansible.builtin.apt:
+    name: elasticsearch
+    state: present
+    update_cache: yes
+
+- name: Configure Elasticsearch
+  ansible.builtin.template:
+    src: elasticsearch.yml.j2
+    dest: /etc/elasticsearch/elasticsearch.yml
+    owner: root
+    group: elasticsearch
+    mode: '0660'
+  notify: restart elasticsearch
+
+- name: Configure Elasticsearch JVM options
+  ansible.builtin.copy:
+    dest: /etc/elasticsearch/jvm.options.d/custom.options
+    content: |
+      -Xms512m
+      -Xmx512m
+    owner: root
+    group: elasticsearch
+    mode: '0644'
+  notify: restart elasticsearch
+
+- name: Set vm.max_map_count
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Create systemd override directory for Elasticsearch
+  ansible.builtin.file:
+    path: /etc/systemd/system/elasticsearch.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Increase systemd start timeout for Elasticsearch
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/elasticsearch.service.d/startup-timeout.conf
+    content: |
+      [Service]
+      TimeoutStartSec=300
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart elasticsearch
+
+- name: Enable and start Elasticsearch
+  ansible.builtin.systemd:
+    name: elasticsearch
+    daemon_reload: yes
+    enabled: yes
+    state: started
+
+- name: Create ILM policy for log retention
+  ansible.builtin.uri:
+    url: "http://localhost:9200/_ilm/policy/fluentd-retention"
+    method: PUT
+    body_format: json
+    body:
+      policy:
+        phases:
+          hot:
+            actions:
+              rollover:
+                max_age: "1d"
+                max_size: "5gb"
+          delete:
+            min_age: "{{ log_retention_days }}d"
+            actions:
+              delete: {}
+    status_code: [200, 201]
+  retries: 5
+  delay: 10
+  register: ilm_result
+  until: ilm_result is succeeded
+  ignore_errors: yes

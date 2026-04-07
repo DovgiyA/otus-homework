@@ -1,0 +1,30 @@
+<?php
+require_once 'telemetry_db.php';
+
+echo "<h2>LibreSpeed Database Connectivity Check</h2>";
+
+$res = getPdo(true);
+
+if ($res instanceof PDO) {
+    echo "<p style='color:green;'>SUCCESS: Connected to the database successfully!</p>";
+    
+    // Check if table exists
+    try {
+        $stmt = $res->query("SELECT COUNT(*) FROM speedtest_users");
+        $count = $stmt->fetchColumn();
+        echo "<p style='color:green;'>SUCCESS: Table 'speedtest_users' found. Current record count: " . $count . "</p>";
+    } catch (Exception $e) {
+        echo "<p style='color:red;'>ERROR: Could not query 'speedtest_users' table: " . $e->getMessage() . "</p>";
+    }
+} else {
+    echo "<p style='color:red;'>ERROR: Failed to connect to the database.</p>";
+    echo "<p>Details: " . $res . "</p>";
+}
+
+echo "<br><hr>";
+echo "<h3>System Info:</h3>";
+echo "DB Type: " . $db_type . "<br>";
+echo "DB Host: " . $PostgreSql_hostname . "<br>";
+echo "DB Name: " . $PostgreSql_databasename . "<br>";
+echo "DB User: " . $PostgreSql_username . "<br>";
+?>

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: librespeed
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/instance: librespeed
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app.kubernetes.io/instance: librespeed

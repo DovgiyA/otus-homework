@@ -1,0 +1,20 @@
+---
+- name: Deploy PostgreSQL Database
+  hosts: db
+  become: true
+  roles:
+    - common
+    - firewall
+    - node_exporter
+    - fluentd
+    - postgresql
+
+- name: Deploy PostgreSQL Standby
+  hosts: db_replica
+  become: true
+  roles:
+    - common
+    - firewall
+    - node_exporter
+    - fluentd
+    - pg_standby

@@ -1,0 +1,11 @@
+---
+- name: Deploy Backend Servers
+  hosts: backends
+  become: true
+  roles:
+    - common
+    - firewall
+    - node_exporter
+    - fluentd
+    - backend
+    - adminer

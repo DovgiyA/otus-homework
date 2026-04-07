@@ -1,0 +1,10 @@
+---
+- name: Deploy Frontend
+  hosts: frontend_group
+  become: true
+  roles:
+    - common
+    - firewall
+    - node_exporter
+    - fluentd
+    - frontend

@@ -1,0 +1,5 @@
+---
+- name: restart frontend nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted

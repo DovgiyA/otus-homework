@@ -1,0 +1,88 @@
+---
+# Role: common - Base setup for all servers
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Disable needrestart interactive prompts
+  ansible.builtin.copy:
+    dest: /etc/needrestart/conf.d/ansible.conf
+    content: |
+      $nrconf{restart} = 'a';
+      $nrconf{kernelhints} = 0;
+    mode: '0644'
+  ignore_errors: yes
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: yes
+    dpkg_options: 'force-confdef,force-confold'
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    NEEDRESTART_MODE: a
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - gnupg
+      - apt-transport-https
+      - software-properties-common
+      - python3-pip
+      - python3-venv
+      - ufw
+      - chrony
+      - acl
+      - ca-certificates
+      - lsb-release
+      - unzip
+      - jq
+    state: present
+    dpkg_options: 'force-confdef,force-confold'
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    NEEDRESTART_MODE: a
+
+- name: Configure /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item.ip }} {{ item.hostname }}"
+    regexp: ".*{{ item.hostname }}$"
+    state: present
+  loop: "{{ etc_hosts_entries }}"
+
+- name: Enable and start chrony
+  ansible.builtin.systemd:
+    name: chrony
+    enabled: yes
+    state: started
+
+- name: Configure sysctl for performance
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop:
+    - { key: "net.core.somaxconn", value: "65535" }
+    - { key: "net.ipv4.tcp_max_syn_backlog", value: "65535" }
+    - { key: "fs.file-max", value: "2097152" }
+
+- name: Set system limits
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/99-custom.conf
+    content: |
+      * soft nofile 65535
+      * hard nofile 65535
+      * soft nproc 65535
+      * hard nproc 65535
+    mode: '0644'

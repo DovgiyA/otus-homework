@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-config
+  namespace: {{ .Values.namespace }}
+data:
+  config.json: |-
+    {
+      "nodePathMap": [
+        {{- range $i, $pathMap := .Values.config.nodePathMap }}
+        {{- if $i }},{{- end }}
+        {
+          "node": {{ $pathMap.node | quote }},
+          "paths": [
+            {{- range $j, $path := $pathMap.paths }}
+            {{- if $j }},{{- end }}
+            {{ $path | quote }}
+            {{- end }}
+          ]
+        }
+        {{- end }}
+      ]
+    }
+  setup: |-
+    #!/bin/sh
+    set -eu
+    mkdir -m 0777 -p "$VOL_DIR"
+  teardown: |-
+    #!/bin/sh
+    set -eu
+    rm -rf "$VOL_DIR"
+  helperPod.yaml: |-
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: helper-pod
+    spec:
+      containers:
+      - name: helper-pod
+        image: {{ .Values.helperPod.image }}
+        imagePullPolicy: {{ .Values.helperPod.imagePullPolicy }}

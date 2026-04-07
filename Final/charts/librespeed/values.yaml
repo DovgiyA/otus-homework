@@ -1,0 +1,29 @@
+namespace: final
+
+image:
+  repository: registry.rebrainme.com/workshops/middle/kubernetes-local/newplatform_autochecks/speedtest
+  tag: "5.3"
+
+env:
+  TITLE: "LibreSpeed MySQL"
+  MODE: "frontend"
+  TELEMETRY: "true"
+  DB_TYPE: "mysql"
+  DB_HOSTNAME: "mysql.db.svc.cluster.local"
+  DB_NAME: "speedtest_telemetry"
+  DB_USERNAME: "speedtest"
+  ENABLE_ID_OBFUSCATION: "true"
+  REDACT_IP_ADDRESSES: "false"
+  WEBPORT: "8080"
+  EMAIL: "admin@example.com"
+
+secret:
+  DB_PASSWORD: "speedtestpassword"
+  PASSWORD: "statspassword"
+  OBFUSCATION_SALT: "0x1234abcd"
+
+registrySecret:
+  name: registrysecret
+  registry: registry.rebrainme.com
+  username: pull-creds
+  password: gldt-HtG_JHBMXyzCCiJAgpzh

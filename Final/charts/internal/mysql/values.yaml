@@ -1,0 +1,52 @@
+namespace: db
+
+image:
+  repository: mysql
+  tag: 8.0
+  pullPolicy: IfNotPresent
+
+mysql:
+  rootPassword: "rootpassword"
+  user: "speedtest"
+  password: "speedtestpassword"
+  database: "speedtest_telemetry"
+
+persistence:
+  storageClass: "local-path"
+  size: 1Gi
+
+service:
+  type: ClusterIP
+  port: 3306
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+initSql: |
+  SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+  SET AUTOCOMMIT = 0;
+  START TRANSACTION;
+  SET time_zone = "+00:00";
+
+  CREATE TABLE IF NOT EXISTS `speedtest_users` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `ip` text NOT NULL,
+    `ispinfo` text,
+    `extra` text,
+    `ua` text NOT NULL,
+    `lang` text NOT NULL,
+    `dl` text,
+    `ul` text,
+    `ping` text,
+    `jitter` text,
+    `log` longtext,
+    PRIMARY KEY (`id`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  COMMIT;
+  

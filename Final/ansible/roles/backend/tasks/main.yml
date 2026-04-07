@@ -1,0 +1,172 @@
+---
+# Role: backend - Nginx + PHP-FPM + LibreSpeed backend
+
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+
+- name: Install PHP 8.3 and modules
+  ansible.builtin.apt:
+    name:
+      - php8.3-fpm
+      - php8.3-pgsql
+      - php8.3-gd
+      - php8.3-mbstring
+      - php8.3-curl
+      - php8.3-xml
+      - php8.3-zip
+      - php8.3-intl
+    state: present
+    update_cache: yes
+
+
+- name: Create PHP-FPM logging directory
+  ansible.builtin.file:
+    path: /var/log/php-fpm
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+
+- name: Create LibreSpeed directory
+  ansible.builtin.file:
+    path: /var/www/speedtest
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Create backend directory
+  ansible.builtin.file:
+    path: /var/www/speedtest/backend
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Create results directory
+  ansible.builtin.file:
+    path: /var/www/speedtest/results
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Copy LibreSpeed frontend files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "/var/www/speedtest/{{ item.dest }}"
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  loop:
+    - { src: "{{ playbook_dir }}/../../speedtest.js", dest: "speedtest.js" }
+    - { src: "{{ playbook_dir }}/../../speedtest_worker.js", dest: "speedtest_worker.js" }
+    - { src: "{{ playbook_dir }}/../../favicon.ico", dest: "favicon.ico" }
+
+- name: Copy LibreSpeed backend files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../backend/"
+    dest: /var/www/speedtest/backend/
+    owner: www-data
+    group: www-data
+    mode: '0644'
+    directory_mode: '0755'
+
+- name: Copy LibreSpeed results files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../results/"
+    dest: /var/www/speedtest/results/
+    owner: www-data
+    group: www-data
+    mode: '0644'
+    directory_mode: '0755'
+
+- name: Deploy index.html with server list
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: /var/www/speedtest/index.html
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Configure telemetry_settings.php for PostgreSQL
+  ansible.builtin.template:
+    src: telemetry_settings.php.j2
+    dest: /var/www/speedtest/results/telemetry_settings.php
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Set proper ownership recursively
+  ansible.builtin.file:
+    path: /var/www/speedtest
+    state: directory
+    recurse: yes
+    owner: www-data
+    group: www-data
+
+
+- name: Ensure results directory is writable for ID obfuscation
+  ansible.builtin.file:
+    path: /var/www/speedtest/results
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0775'
+
+- name: Deploy consistent obfuscation salt
+  ansible.builtin.template:
+    src: idObfuscation_salt.php.j2
+    dest: /var/www/speedtest/results/idObfuscation_salt.php
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+
+- name: Deploy DB connectivity check script
+  ansible.builtin.template:
+    src: db_check.php.j2
+    dest: /var/www/speedtest/results/db_check.php
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Configure Nginx for backend
+  ansible.builtin.template:
+    src: nginx-backend.conf.j2
+    dest: /etc/nginx/sites-available/speedtest
+    mode: '0644'
+  notify: restart nginx
+
+- name: Enable Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/speedtest
+    dest: /etc/nginx/sites-enabled/speedtest
+    state: link
+  notify: restart nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+
+- name: Configure PHP-FPM pool
+  ansible.builtin.template:
+    src: php-fpm-pool.conf.j2
+    dest: /etc/php/8.3/fpm/pool.d/speedtest.conf
+    mode: '0644'
+  notify: restart php-fpm
+
+- name: Enable and start services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - nginx
+    - php8.3-fpm

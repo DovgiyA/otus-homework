@@ -1,0 +1,14 @@
+---
+- name: Deploy Monitoring Stack
+  hosts: monitoring
+  become: true
+  roles:
+    - common
+    - firewall
+    - node_exporter
+    - fluentd
+    - elasticsearch
+    - kibana
+    - prometheus
+    - alertmanager
+    - grafana

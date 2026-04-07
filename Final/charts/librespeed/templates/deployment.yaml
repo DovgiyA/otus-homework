@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librespeed
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/instance: librespeed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: librespeed
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: librespeed
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.registrySecret.name }}
+      containers:
+        - name: librespeed
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          envFrom:
+            - configMapRef:
+                name: librespeed-env
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librespeed-secret
+                  key: DB_PASSWORD
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librespeed-secret
+                  key: PASSWORD
+            - name: OBFUSCATION_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: librespeed-secret
+                  key: OBFUSCATION_SALT
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: servers-json
+              mountPath: /servers.json
+              subPath: servers.json
+      volumes:
+        - name: servers-json
+          configMap:
+            name: librespeed-servers

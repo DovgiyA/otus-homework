@@ -1,0 +1,33 @@
+namespace: kube-system
+
+image:
+  repository: rancher/local-path-provisioner
+  tag: v0.0.30
+  pullPolicy: IfNotPresent
+
+replicas: 1
+
+storageClass:
+  name: local-path
+  provisioner: rancher.io/local-path
+  volumeBindingMode: WaitForFirstConsumer
+  reclaimPolicy: Delete
+
+config:
+  nodePathMap:
+    - node: "DEFAULT_PATH_FOR_NON_LISTED_NODES"
+      paths:
+        - /opt/local-path-provisioner
+
+helperPod:
+  image: busybox
+  imagePullPolicy: IfNotPresent
+
+serviceAccount:
+  name: local-path-provisioner-service-account
+  create: true
+
+rbac:
+  clusterRoleName: local-path-provisioner-role
+  clusterRoleBindingName: local-path-provisioner-bind
+  create: true

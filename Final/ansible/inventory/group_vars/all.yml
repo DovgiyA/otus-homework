@@ -1,0 +1,106 @@
+---
+# ============================================================
+# Global Variables for LibreSpeed Deployment
+# ============================================================
+
+# Domain
+domain_name: "xn----ctbkoedricefmgyd0k.xn--p1ai"
+domain_name_www: "www.xn----ctbkoedricefmgyd0k.xn--p1ai"
+
+# SSL Certificate (DomainSSL from GlobalSign)
+ssl_cert_dir: "/etc/ssl/speedtest"
+ssl_cert_file: "{{ ssl_cert_dir }}/fullchain.pem"
+ssl_key_file: "{{ ssl_cert_dir }}/privkey.pem"
+ssl_chain_file: "{{ ssl_cert_dir }}/chain.pem"
+
+# Server IPs (private)
+frontend_ip: "10.130.0.26"
+backend1_ip: "10.130.0.13"
+backend2_ip: "10.130.0.15"
+db_primary_ip: "10.130.0.18"
+db_replica_ip: "10.130.0.17"
+monitoring_ip: "10.130.0.21"
+
+# All hosts mapping for /etc/hosts
+etc_hosts_entries:
+  - ip: "10.130.0.26"
+    hostname: "frontend"
+  - ip: "10.130.0.13"
+    hostname: "backend1"
+  - ip: "10.130.0.15"
+    hostname: "backend2"
+  - ip: "10.130.0.18"
+    hostname: "database"
+  - ip: "10.130.0.17"
+    hostname: "dbreplica"
+  - ip: "10.130.0.21"
+    hostname: "monitor"
+
+# ============================================================
+# PostgreSQL
+# ============================================================
+postgresql_version: "16"
+pg_speedtest_db: "speedtest"
+pg_speedtest_user: "speedtest"
+pg_speedtest_password: "SpeedTest@2026Secure"
+
+pg_grafana_db: "grafana"
+pg_grafana_user: "grafana"
+pg_grafana_password: "Grafana@2026Secure"
+
+pg_replicator_user: "replicator"
+pg_replicator_password: "Replicator@2026Secure"
+
+pg_postgres_password: "Postgres@2026SuperAdmin"
+
+# ============================================================
+# Prometheus
+# ============================================================
+prometheus_version: "2.51.2"
+prometheus_basic_auth_user: "rebrainme"
+prometheus_basic_auth_password: "prometheus"
+
+# ============================================================
+# Grafana
+# ============================================================
+grafana_admin_user: "Alex"
+grafana_admin_password: "grafana"
+
+# ============================================================
+# Node Exporter
+# ============================================================
+node_exporter_version: "1.8.2"
+blackbox_exporter_version: "0.25.0"
+
+# ============================================================
+# Alertmanager
+# ============================================================
+alertmanager_version: "0.27.0"
+
+# ============================================================
+# Telegram
+# ============================================================
+telegram_bot_token: "7958638143:AAFOeOKfYEhyRfvQh4jUiWFdoxiASDFOUcQ"
+telegram_chat_id: 1247569610
+
+# ============================================================
+# Elasticsearch / Kibana
+# ============================================================
+elasticsearch_version: "8"
+log_retention_days: 7
+
+# ============================================================
+# LibreSpeed
+# ============================================================
+librespeed_stats_password: "LibreSpeed@Stats2026"
+librespeed_obfuscation_salt: "0xa3f1b7c9"
+
+# ============================================================
+# Adminer
+# ============================================================
+adminer_version: "4.8.1"
+
+# ============================================================
+# Timezone
+# ============================================================
+timezone: "Europe/Moscow"

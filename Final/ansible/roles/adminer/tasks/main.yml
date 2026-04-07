@@ -1,0 +1,38 @@
+---
+# Role: adminer - Database management tool
+
+- name: Create Adminer directory
+  ansible.builtin.file:
+    path: /var/www/adminer
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Download Adminer
+  ansible.builtin.get_url:
+    url: "https://github.com/vrana/adminer/releases/download/v{{ adminer_version }}/adminer-{{ adminer_version }}.php"
+    dest: /var/www/adminer/adminer.php
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Create Adminer index.php redirect
+  ansible.builtin.copy:
+    dest: /var/www/adminer/index.php
+    content: |
+      <?php
+      // Redirect to adminer.php
+      header('Location: adminer.php');
+      exit;
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Create PHP-FPM log directory
+  ansible.builtin.file:
+    path: /var/log/php-fpm
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'

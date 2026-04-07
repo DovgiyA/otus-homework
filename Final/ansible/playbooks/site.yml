@@ -1,0 +1,69 @@
+---
+# Master playbook - Deploys entire LibreSpeed infrastructure
+
+# Phase 1: Common setup for all hosts
+- name: Common setup for all hosts
+  hosts: all
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+    - role: firewall
+      tags: [firewall]
+    - role: node_exporter
+      tags: [node_exporter]
+    - role: fluentd
+      tags: [fluentd]
+
+# Phase 2: Database (must be before backends and monitoring)
+- name: Deploy PostgreSQL Primary
+  hosts: db
+  become: true
+  roles:
+    - role: postgresql
+      tags: [postgresql]
+
+# Phase 2.5: Database Standby
+- name: Deploy PostgreSQL Standby
+  hosts: db_replica
+  become: true
+  roles:
+    - role: pg_standby
+      tags: [pg_standby]
+
+# Phase 3: Backend servers
+- name: Deploy Backend Servers
+  hosts: backends
+  become: true
+  roles:
+    - role: backend
+      tags: [backend]
+    - role: adminer
+      tags: [adminer]
+
+# Phase 4: Frontend
+- name: Deploy Frontend (Nginx + SSL)
+  hosts: frontend_group
+  become: true
+  roles:
+    - role: frontend
+      tags: [frontend]
+
+# Phase 5: Monitoring & Logging
+- name: Deploy Monitoring Stack
+  hosts: monitoring
+  become: true
+  roles:
+    - role: elasticsearch
+      tags: [elasticsearch]
+    - role: kibana
+      tags: [kibana]
+    - role: blackbox_exporter
+      tags: [blackbox]
+    - role: prometheus
+      tags: [prometheus]
+    - role: alertmanager
+      tags: [alertmanager]
+    - role: grafana
+      tags: [grafana]
+

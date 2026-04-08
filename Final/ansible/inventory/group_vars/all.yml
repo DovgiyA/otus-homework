@@ -42,29 +42,29 @@ etc_hosts_entries:
 postgresql_version: "16"
 pg_speedtest_db: "speedtest"
 pg_speedtest_user: "speedtest"
-pg_speedtest_password: "SpeedTest@2026Secure"
+# pg_speedtest_password moved to secrets.yml
 
 pg_grafana_db: "grafana"
 pg_grafana_user: "grafana"
-pg_grafana_password: "Grafana@2026Secure"
+# pg_grafana_password moved to secrets.yml
 
 pg_replicator_user: "replicator"
-pg_replicator_password: "Replicator@2026Secure"
+# pg_replicator_password moved to secrets.yml
 
-pg_postgres_password: "Postgres@2026SuperAdmin"
+# pg_postgres_password moved to secrets.yml
 
 # ============================================================
 # Prometheus
 # ============================================================
 prometheus_version: "2.51.2"
 prometheus_basic_auth_user: "rebrainme"
-prometheus_basic_auth_password: "prometheus"
+# prometheus_basic_auth_password moved to secrets.yml
 
 # ============================================================
 # Grafana
 # ============================================================
 grafana_admin_user: "Alex"
-grafana_admin_password: "grafana"
+# grafana_admin_password moved to secrets.yml
 
 # ============================================================
 # Node Exporter
@@ -80,7 +80,7 @@ alertmanager_version: "0.27.0"
 # ============================================================
 # Telegram
 # ============================================================
-telegram_bot_token: "7958638143:AAFOeOKfYEhyRfvQh4jUiWFdoxiASDFOUcQ"
+# telegram_bot_token moved to secrets.yml
 telegram_chat_id: 1247569610
 
 # ============================================================
@@ -92,8 +92,8 @@ log_retention_days: 7
 # ============================================================
 # LibreSpeed
 # ============================================================
-librespeed_stats_password: "LibreSpeed@Stats2026"
-librespeed_obfuscation_salt: "0xa3f1b7c9"
+# librespeed_stats_password moved to secrets.yml
+# librespeed_obfuscation_salt moved to secrets.yml
 
 # ============================================================
 # Adminer

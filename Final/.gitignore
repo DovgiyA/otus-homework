@@ -7,3 +7,10 @@ package-lock.json
 results/speedtest_telemetry.db
 results/speedtest_telemetry.db-shm
 results/speedtest_telemetry.db-wal
+
+# Ansible
+*.retry
+*.vault
+.vault_pass
+**/group_vars/secrets.yml
+!**/group_vars/secrets.yml.example

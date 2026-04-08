@@ -1,0 +1,41 @@
+---
+- name: Install nftables
+  apt:
+    name: nftables
+    state: present
+    update_cache: yes
+
+- name: Remove iptables-persistent
+  apt:
+    name: iptables-persistent
+    state: absent
+    purge: yes
+
+- name: Flush existing iptables rules (compatibility)
+  shell: |
+    iptables -F
+    iptables -t nat -F
+    iptables -X
+    iptables -t nat -X
+  ignore_errors: yes
+
+- name: Enable ip_forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Configure nftables
+  template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: '0755'
+  notify: restart nftables
+
+- name: Enable and start nftables service
+  systemd:
+    name: nftables
+    state: started
+    enabled: yes

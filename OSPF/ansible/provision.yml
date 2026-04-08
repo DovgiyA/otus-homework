@@ -1,0 +1,6 @@
+---
+- name: Provision OSPF Routers
+  hosts: routers
+  become: yes
+  roles:
+    - frr

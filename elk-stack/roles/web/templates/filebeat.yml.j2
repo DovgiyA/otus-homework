@@ -1,0 +1,22 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/access.log
+    - /var/log/nginx/error.log
+  fields:
+    logtype: nginx
+  fields_under_root: true
+
+- type: log
+  enabled: true
+  paths:
+    - /var/log/audit/audit.log
+  fields:
+    logtype: audit
+  fields_under_root: true
+
+output.logstash:
+  hosts: ["{{ log_server_ip }}:5044"]
+
+logging.level: info

@@ -1,0 +1,20 @@
+[Unit]
+Description=BorgBackup /etc to {{ backup_server }}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ client_user }}
+Environment="BORG_PASSPHRASE={{ password }}"
+Environment="REPO={{ backup_user }}@{{ backup_server }}{{ backup_dir }}"
+Environment="BACKUP_TARGET={{ backup_source }}"
+
+# Создание архива
+# Запуск скрипта
+ExecStart=/usr/local/bin/borg-backup.sh
+
+# Логируем в syslog (хотя скрипт сам логирует, systemd тоже захватит stdout/stderr)
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=borg-backup-service

@@ -1,0 +1,8 @@
+[master]
+master ansible_host=192.168.50.11 ansible_port=22 ansible_private_key_file=.vagrant/machines/master/virtualbox/private_key
+
+[replica]
+replica ansible_host=192.168.50.12 ansible_port=22 ansible_private_key_file=.vagrant/machines/replica/virtualbox/private_key
+
+[barman]
+barman ansible_host=192.168.50.13 ansible_port=22 ansible_private_key_file=.vagrant/machines/barman/virtualbox/private_key

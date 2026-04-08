@@ -1,0 +1,83 @@
+---
+- name: Install Nginx web server
+  apt:
+    name: nginx
+    state: present
+
+- name: Create directory for Ubuntu repository
+  file:
+    path: "{{ ubuntu_web_path }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Download Ubuntu 24.04 ISO
+  get_url:
+    url: "{{ ubuntu_iso_url }}"
+    dest: "{{ ubuntu_iso_path }}"
+    mode: '0644'
+    timeout: 1800
+  register: iso_download
+
+- name: Create ISO mount point
+  file:
+    path: "{{ ubuntu_mount_path }}"
+    state: directory
+    mode: '0755'
+  when: ubuntu_mount_path not in ansible_mounts | map(attribute='mount') | list
+
+- name: Mount Ubuntu ISO
+  mount:
+    path: "{{ ubuntu_mount_path }}"
+    src: "{{ ubuntu_iso_path }}"
+    fstype: iso9660
+    opts: ro,loop
+    state: mounted
+
+- name: Copy ISO contents to web directory
+  synchronize:
+    src: "{{ ubuntu_mount_path }}/"
+    dest: "{{ ubuntu_web_path }}/"
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Remove recursive symlink from web directory
+  file:
+    path: "{{ ubuntu_web_path }}/ubuntu"
+    state: absent
+
+- name: Set correct permissions on web directory
+  file:
+    path: "{{ ubuntu_web_path }}"
+    owner: www-data
+    group: www-data
+    recurse: yes
+    mode: u=rwX,g=rX,o=rX
+
+- name: Configure Nginx for PXE boot
+  template:
+    src: nginx-pxe.conf.j2
+    dest: /etc/nginx/sites-available/pxe
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart nginx
+
+- name: Enable PXE site
+  file:
+    src: /etc/nginx/sites-available/pxe
+    dest: /etc/nginx/sites-enabled/pxe
+    state: link
+  notify: restart nginx
+
+- name: Remove default Nginx site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+
+- name: Enable and start Nginx
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started

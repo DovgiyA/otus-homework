@@ -1,0 +1,5 @@
+---
+# Main playbook - runs all configuration
+- import_playbook: common.yml
+
+- import_playbook: networking.yml

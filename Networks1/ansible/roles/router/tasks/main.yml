@@ -1,0 +1,183 @@
+---
+# Router role - IP forwarding, NAT, static routes, and route persistence
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_set: yes
+    reload: yes
+
+- name: Install iptables-persistent to save iptables rules
+  apt:
+    name: iptables-persistent
+    state: present
+    update_cache: yes
+
+# inetRouter: NAT for all traffic going out to the internet
+- name: Enable NAT MASQUERADE on inetRouter
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: eth0
+    jump: MASQUERADE
+    state: present
+  when: inventory_hostname == 'inetRouter'
+
+- name: Save iptables rules permanently (inetRouter)
+  shell: |
+    iptables-save > /etc/iptables/rules.v4
+  when: inventory_hostname == 'inetRouter'
+  changed_when: false
+
+# centralRouter: static routes to office1 and office2
+- name: Add route to office1 via office1Router (centralRouter)
+  shell: |
+    ip route del 192.168.2.0/24 2>/dev/null || true
+    ip route add 192.168.2.0/24 via {{ central_router_eth1 }} dev eth1
+  when: inventory_hostname == 'centralRouter'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Add route to office2 via office2Router (centralRouter)
+  shell: |
+    ip route del 192.168.1.0/24 2>/dev/null || true
+    ip route add 192.168.1.0/24 via {{ central_router_eth2 }} dev eth2
+  when: inventory_hostname == 'centralRouter'
+  ignore_errors: yes
+  changed_when: false
+
+# office1Router: route to central and office2
+- name: Add route to central via centralRouter (office1Router)
+  shell: |
+    ip route del 192.168.0.0/24 2>/dev/null || true
+    ip route add 192.168.0.0/24 via {{ office1_router_eth2 }} dev eth2
+  when: inventory_hostname == 'office1Router'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Add route to office2 via centralRouter (office1Router)
+  shell: |
+    ip route del 192.168.1.0/24 2>/dev/null || true
+    ip route add 192.168.1.0/24 via {{ office1_router_eth2 }} dev eth2
+  when: inventory_hostname == 'office1Router'
+  ignore_errors: yes
+  changed_when: false
+
+# office2Router: route to central and office1
+- name: Add route to central via centralRouter (office2Router)
+  shell: |
+    ip route del 192.168.0.0/24 2>/dev/null || true
+    ip route add 192.168.0.0/24 via {{ office2_router_eth2 }} dev eth2
+  when: inventory_hostname == 'office2Router'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Add route to office1 via centralRouter (office2Router)
+  shell: |
+    ip route del 192.168.2.0/24 2>/dev/null || true
+    ip route add 192.168.2.0/24 via {{ office2_router_eth2 }} dev eth2
+  when: inventory_hostname == 'office2Router'
+  ignore_errors: yes
+  changed_when: false
+
+# Default gateway pointing to inetRouter via centralRouter (for non-inetRouter routers)
+- name: Set default route via centralRouter (non-inetRouter routers)
+  shell: |
+    ip route del default 2>/dev/null || true
+    {% if inventory_hostname == 'centralRouter' %}
+    ip route add default via {{ central_router_eth4 }} dev eth4
+    {% elif inventory_hostname in ['office1Router', 'office2Router'] %}
+    ip route add default via {{ hostvars[inventory_hostname]['ansible_eth2']['ipv4']['address'] | replace(inventory_hostname == 'office1Router' and '192.168.254.2' or '192.168.253.2', '192.168.254.1' if inventory_hostname == 'office1Router' else '192.168.253.1') }} dev eth2
+    {% endif %}
+  when: inventory_hostname != 'inetRouter'
+  ignore_errors: yes
+  changed_when: false
+
+# Actually, let me simplify the above with explicit gateway IPs
+- name: Set default route for centralRouter
+  shell: |
+    ip route del default 2>/dev/null || true
+    ip route add default via 10.0.0.2 dev eth4
+  when: inventory_hostname == 'centralRouter'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Set default route for office1Router
+  shell: |
+    ip route del default 2>/dev/null || true
+    ip route add default via 192.168.254.1 dev eth2
+  when: inventory_hostname == 'office1Router'
+  ignore_errors: yes
+  changed_when: false
+
+- name: Set default route for office2Router
+  shell: |
+    ip route del default 2>/dev/null || true
+    ip route add default via 192.168.253.1 dev eth2
+  when: inventory_hostname == 'office2Router'
+  ignore_errors: yes
+  changed_when: false
+
+# Route persistence via systemd service (restore routes on boot)
+- name: Create route persistence script
+  copy:
+    content: |
+      #!/bin/bash
+      # Restore IP routes after reboot
+      
+      {% if inventory_hostname == 'centralRouter' %}
+      ip route del default 2>/dev/null || true
+      ip route add default via 10.0.0.2 dev eth4
+      ip route del 192.168.2.0/24 2>/dev/null || true
+      ip route add 192.168.2.0/24 via 192.168.254.1 dev eth1
+      ip route del 192.168.1.0/24 2>/dev/null || true
+      ip route add 192.168.1.0/24 via 192.168.253.1 dev eth2
+      {% elif inventory_hostname == 'office1Router' %}
+      ip route del default 2>/dev/null || true
+      ip route add default via 192.168.254.1 dev eth2
+      ip route del 192.168.0.0/24 2>/dev/null || true
+      ip route add 192.168.0.0/24 via 192.168.254.1 dev eth2
+      ip route del 192.168.1.0/24 2>/dev/null || true
+      ip route add 192.168.1.0/24 via 192.168.254.1 dev eth2
+      {% elif inventory_hostname == 'office2Router' %}
+      ip route del default 2>/dev/null || true
+      ip route add default via 192.168.253.1 dev eth2
+      ip route del 192.168.0.0/24 2>/dev/null || true
+      ip route add 192.168.0.0/24 via 192.168.253.1 dev eth2
+      ip route del 192.168.2.0/24 2>/dev/null || true
+      ip route add 192.168.2.0/24 via 192.168.253.1 dev eth2
+      {% endif %}
+    dest: /usr/local/sbin/restore-routes
+    mode: '0755'
+    owner: root
+    group: root
+  when: inventory_hostname != 'inetRouter'
+
+- name: Create systemd service for route persistence
+  copy:
+    content: |
+      [Unit]
+      Description=Restore static routes and default gateway
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/restore-routes
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/restore-routes.service
+    mode: '0644'
+    owner: root
+    group: root
+  when: inventory_hostname != 'inetRouter'
+
+- name: Enable route persistence service
+  systemd:
+    name: restore-routes
+    enabled: yes
+    daemon_reload: yes
+  when: inventory_hostname != 'inetRouter'

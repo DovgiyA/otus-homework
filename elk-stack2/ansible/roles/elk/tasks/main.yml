@@ -1,0 +1,68 @@
+---
+- name: Install OpenJDK
+  apt:
+    name: openjdk-11-jdk
+    state: present
+    update_cache: yes
+
+- name: Add Elastic GPG Key
+  apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Add Elastic Source List
+  apt_repository:
+    repo: "deb https://artifacts.elastic.co/packages/7.x/apt stable main"
+    state: present
+
+- name: Install Elasticsearch
+  apt:
+    name: elasticsearch
+    state: present
+    update_cache: yes
+
+- name: Configure Elasticsearch
+  lineinfile:
+    path: /etc/elasticsearch/elasticsearch.yml
+    regexp: '^{{ item.key }}:'
+    line: '{{ item.key }}: {{ item.value }}'
+  with_items:
+    - { key: 'network.host', value: '0.0.0.0' }
+    - { key: 'discovery.type', value: 'single-node' }
+  notify: restart elasticsearch
+
+- name: Install Kibana
+  apt:
+    name: kibana
+    state: present
+
+- name: Configure Kibana
+  lineinfile:
+    path: /etc/kibana/kibana.yml
+    regexp: '^{{ item.key }}:'
+    line: '{{ item.key }}: {{ item.value }}'
+  with_items:
+    - { key: 'server.host', value: '"0.0.0.0"' }
+    - { key: 'elasticsearch.hosts', value: '["http://localhost:9200"]' }
+  notify: restart kibana
+
+- name: Install Logstash
+  apt:
+    name: logstash
+    state: present
+
+- name: Configure Logstash
+  template:
+    src: logstash.conf.j2
+    dest: /etc/logstash/conf.d/logstash.conf
+  notify: restart logstash
+
+- name: Enable services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  with_items:
+    - elasticsearch
+    - kibana
+    - logstash

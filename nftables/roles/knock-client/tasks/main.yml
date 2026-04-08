@@ -1,0 +1,26 @@
+---
+- name: Install knockd (client)
+  apt:
+    name: knockd
+    state: present
+    update_cache: yes
+
+- name: Create knock script
+  copy:
+    dest: /usr/local/bin/knock-open
+    content: |
+      #!/bin/bash
+      HOST=$1
+      shift
+      knock $HOST 7000 8000 9000
+    mode: '0755'
+
+- name: Create knock close script
+  copy:
+    dest: /usr/local/bin/knock-close
+    content: |
+      #!/bin/bash
+      HOST=$1
+      shift
+      knock $HOST 9000 8000 7000
+    mode: '0755'

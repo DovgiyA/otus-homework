@@ -1,0 +1,21 @@
+all:
+  children:
+    routers:
+      hosts:
+        router1:
+          ansible_host: 127.0.0.1
+          ansible_port: 2222
+          ansible_user: vagrant
+          ansible_ssh_private_key_file: /home/alex/Work/otus-homework/OSPF/.vagrant/machines/router1/virtualbox/private_key
+        router2:
+          ansible_host: 127.0.0.1
+          ansible_port: 2200
+          ansible_user: vagrant
+          ansible_ssh_private_key_file: /home/alex/Work/otus-homework/OSPF/.vagrant/machines/router2/virtualbox/private_key
+        router3:
+          ansible_host: 127.0.0.1
+          ansible_port: 2201
+          ansible_user: vagrant
+          ansible_ssh_private_key_file: /home/alex/Work/otus-homework/OSPF/.vagrant/machines/router3/virtualbox/private_key
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

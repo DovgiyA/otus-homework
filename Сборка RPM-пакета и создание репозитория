@@ -1,0 +1,138 @@
+AlmaLinux 9.6
+
+[root@localhost ~]# yum install -y wget rpmdevtools rpm-build createrepo yum-utils cmake gcc git nano
+
+[root@localhost ~]# mkdir rpm && cd rpm
+
+[root@localhost ~]# yumdownloader --source httpd
+enabling appstream-source repository
+enabling baseos-source repository
+enabling extras-source repository
+Last metadata expiration check: 0:09:11 ago on Mon Jun  9 19:15:31 2025.
+httpd-2.4.62-4.el9.src.rpm
+
+[root@localhost ~]# rpm -Uvh httpd*.src.rpm
+
+[root@localhost ~]# yum install -y build-essential automake autoconf make bzip2 libapr1-dev libaprutil1-dev libbrotli-dev libcurl4-openssl-devlibjansson-dev \ 
+liblua5.2-dev libnghttp2-dev libpcre3-dev libssl-dev libxml2-dev zlib1g-dev 
+
+[root@localhost ~]# dnf --enablerepo=crb install lua-devel
+
+[root@localhost ~]# cd ~/rpmbuild/SPECS/
+
+[root@localhost SPECS]#  rpmbuild -ba httpd.spec
+.....
+Executing(%clean): /bin/sh -e /var/tmp/rpm-tmp.YFRdfE
++ umask 022
++ cd /root/rpmbuild/BUILD
++ cd httpd-2.4.62
++ /usr/bin/rm -rf /root/rpmbuild/BUILDROOT/httpd-2.4.62-4.el9.aarch64
++ RPM_EC=0
+++ jobs -p
++ exit 0
+
+[root@localhost SPECS]# cp ~/rpmbuild/RPMS/noarch/* ~/rpmbuild/RPMS/aarch64/
+
+[root@localhost SPECS]# cd ~/rpmbuild/RPMS/aarch64/
+
+[root@localhost aarch64]# yum localinstall *.rpm
+
+[root@localhost aarch64]# systemctl start httpd
+
+[root@localhost aarch64]# systemctl status httpd
+
+● httpd.service - The Apache HTTP Server
+     Loaded: loaded (/usr/lib/systemd/system/httpd.service; disabled; preset: disabled)
+     Active: active (running) since Mon 2025-06-09 19:39:49 MSK; 5s ago
+       Docs: man:httpd.service(8)
+   Main PID: 124787 (httpd)
+     Status: "Started, listening on: port 443, port 80"
+      Tasks: 177 (limit: 10602)
+     Memory: 22.9M
+        CPU: 81ms
+     CGroup: /system.slice/httpd.service
+             ├─124787 /usr/sbin/httpd -DFOREGROUND
+             ├─124788 /usr/sbin/httpd -DFOREGROUND
+             ├─124789 /usr/sbin/httpd -DFOREGROUND
+             ├─124790 /usr/sbin/httpd -DFOREGROUND
+             └─124791 /usr/sbin/httpd -DFOREGROUND
+
+Jun 09 19:39:49 localhost.localdomain systemd[1]: Starting The Apache HTTP Server...
+Jun 09 19:39:49 localhost.localdomain httpd[124787]: AH00558: httpd: Could not reliably determine the server's fully>
+Jun 09 19:39:49 localhost.localdomain httpd[124787]: Server configured, listening on: port 443, port 80
+Jun 09 19:39:49 localhost.localdomain systemd[1]: Started The Apache HTTP Server.
+
+[root@localhost aarch64]# systemctl stop httpd
+
+[root@localhost aarch64]# yum install -y nginx
+
+ [root@localhost aarch64]# systemctl start nginx
+
+[root@localhost aarch64]# mkdir /usr/share/nginx/html/repo
+
+[root@localhost aarch64]# cp ~/rpmbuild/RPMS/aarch64/*.rpm /usr/share/nginx/html/repo/
+
+[root@localhost aarch64]# createrepo /usr/share/nginx/html/repo/
+Directory walk started
+Directory walk done - 21 packages
+Temporary output repo path: /usr/share/nginx/html/repo/.repodata/
+Preparing sqlite DBs
+Pool started (with 5 workers)
+Pool finished
+
+[root@localhost aarch64]# /etc/nginx/nginx.conf
+
+.........
+ server {
+        listen       80;
+        listen       [::]:80;
+        server_name  _;
+        root         /usr/share/nginx/html;
+
+       	# Load configuration files for the default server block.
+        include /etc/nginx/default.d/*.conf;
+
+        error_page 404 /404.html;
+        location = /404.html {
+        }
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+        }
+       	index index.html index.htm;
+       	autoindex on;
+
+    }
+.......
+
+[root@localhost aarch64]# nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+[root@localhost aarch64]# nginx -s reload
+
+[root@localhost aarch64]#  cat >> /etc/yum.repos.d/otus.repo << EOF
+[otus]
+name=otus-linux
+baseurl=http://localhost/repo
+gpgcheck=0
+enabled=1
+EOF
+
+[root@localhost aarch64]#  yum repolist enabled | grep otus
+otus otus-linux 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

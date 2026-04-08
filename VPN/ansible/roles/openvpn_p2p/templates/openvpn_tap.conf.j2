@@ -1,0 +1,17 @@
+dev {{ mode }}
+ifconfig 10.8.1.{{ '1' if inventory_hostname == groups['vpn_p2p'][0] else '2' }} 255.255.255.0
+secret /etc/openvpn/static.key
+{% if inventory_hostname == groups['vpn_p2p'][1] %}
+remote 192.168.50.11
+{% else %}
+remote 192.168.50.12
+{% endif %}
+port 1195
+keepalive 10 60
+user nobody
+group nogroup
+persist-key
+persist-tun
+status /var/log/openvpn-status-{{ mode }}.log
+log /var/log/openvpn-{{ mode }}.log
+verb 3

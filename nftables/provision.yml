@@ -1,0 +1,44 @@
+---
+- name: Configure Generic Router (Internet Access)
+  hosts: inetRouter
+  become: true
+  roles:
+    - router
+
+- name: Configure Knock Server
+  hosts: inetRouter
+  become: true
+  roles:
+    - knock-server
+
+- name: Configure Knock Client
+  hosts: centralRouter
+  become: true
+  roles:
+    - knock-client
+
+- name: Configure Web Server
+  hosts: webservers
+  become: true
+  roles:
+    - web
+
+- name: Configure Port Forwarding
+  hosts: inetRouter2
+  become: true
+  roles:
+    - port-forward
+
+- name: Set Default Route for centralRouter and centralServer
+  hosts: centralRouter, centralServer
+  become: true
+  tasks:
+    - name: Add default route via inetRouter
+      shell: |
+        ip route del default || true
+        ip route add default via 192.168.50.10
+      ignore_errors: yes
+      # This is a bit hacky, normally we'd usage netplan or similar, but for a quick lab this works.
+      # Vagrant often adds a default route on eth0 (NAT), we might need to override/metric it 
+      # depending on if we want ALL traffic via inetRouter. 
+      # The task says "default in inet leave via inetRouter".

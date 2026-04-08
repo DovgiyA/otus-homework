@@ -1,0 +1,5 @@
+## Audit rules for nginx configuration changes
+-w /etc/nginx/ -p wa -k nginx_config_changes
+-w /etc/nginx/nginx.conf -p wa -k nginx_config_changes
+-w /etc/nginx/sites-available/ -p wa -k nginx_config_changes
+-w /etc/nginx/sites-enabled/ -p wa -k nginx_config_changes

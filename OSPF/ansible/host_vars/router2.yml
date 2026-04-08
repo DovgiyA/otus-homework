@@ -1,0 +1,8 @@
+router_id: 2.2.2.2
+interfaces:
+  - name: eth1
+    ip: 192.168.10.2/24
+    ospf_cost: 10
+  - name: eth2
+    ip: 192.168.20.2/24
+    ospf_cost: 10

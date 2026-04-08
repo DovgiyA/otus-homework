@@ -1,0 +1,47 @@
+---
+- name: Configure single VLAN interface via netplan
+  copy:
+    content: |
+      network:
+        version: 2
+        renderer: networkd
+        ethernets:
+          {{ vlan_interface }}:
+            dhcp4: false
+        vlans:
+          vlan{{ vlan_id }}:
+            id: {{ vlan_id }}
+            link: {{ vlan_interface }}
+            addresses:
+              - {{ vlan_ip }}/{{ vlan_netmask | default('24') }}
+      {% if vlan_gateway is defined %}
+            routes:
+              - to: default
+                via: {{ vlan_gateway }}
+      {% endif %}
+    dest: /etc/netplan/60-vlan{{ vlan_id }}.yaml
+    mode: '0600'
+  when: vlan_id is defined
+  notify: apply netplan
+
+- name: Configure multiple VLANs on router via netplan
+  copy:
+    content: |
+      network:
+        version: 2
+        renderer: networkd
+        ethernets:
+          {{ vlan_interface }}:
+            dhcp4: false
+        vlans:
+      {% for vlan in vlans %}
+          vlan{{ vlan.id }}:
+            id: {{ vlan.id }}
+            link: {{ vlan_interface }}
+            addresses:
+              - {{ vlan.ip }}/24
+      {% endfor %}
+    dest: /etc/netplan/60-vlans.yaml
+    mode: '0600'
+  when: vlans is defined
+  notify: apply netplan

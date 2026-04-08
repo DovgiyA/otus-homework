@@ -1,0 +1,11 @@
+- name: Deploy ELK server
+  hosts: log
+  become: yes
+  roles:
+    - log
+
+- name: Deploy Web + Audit
+  hosts: web
+  become: yes
+  roles:
+    - web

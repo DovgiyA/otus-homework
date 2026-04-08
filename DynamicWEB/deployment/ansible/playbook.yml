@@ -1,0 +1,18 @@
+---
+- name: Deploy LibreSpeed on Docker with Nginx reverse proxy
+  hosts: librespeed
+  become: true
+  vars:
+    app_dir: /opt/librespeed
+    db_password: "secure_password_here"
+    db_user: "speed_user"
+    db_name: "librespeed"
+    app_port: 8080
+    server_ip: "192.168.56.10"
+    project_root: /Users/a1/otus-homework/DynamicWEB
+
+  roles:
+    - common
+    - docker
+    - app-config
+    - nginx

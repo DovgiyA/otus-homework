@@ -1,0 +1,96 @@
+Работа с NFS 
+server@ubuntu-task1738-ugwnr Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-186-generic x86_64) ipv4_address: 158.160.21.147
+client@ubuntu-task1739-qilpn Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-186-generic x86_64) ipv4_address: 158.160.1.93
+
+Сервер
+
+server@ubuntu-task1738-ugwnr:~$ `sudo apt update`
+
+server@ubuntu-task1738-ugwnr:~$ `sudo apt install nfs-kernel-server`
+
+server@ubuntu-task1738-ugwnr:~$ `sudo mkdir -p /srv/share/upload`
+
+server@ubuntu-task1738-ugwnr:~$ `sudo chown -R nobody:nogroup /srv/share`
+
+server@ubuntu-task1738-ugwnr:~$ `sudo chmod 0777 /srv/share/upload`
+
+server@ubuntu-task1738-ugwnr:~$ `sudo nano /etc/exports`
+/srv/share 158.160.1.93(rw,sync,root_squash,no_subtree_check)
+
+server@ubuntu-task1738-ugwnr:~$ `sudo exportfs -r` 
+
+server@ubuntu-task1738-ugwnr:~$ `sudo exportfs -s`
+/srv/share  158.160.1.93(rw,wdelay,root_squash,no_subtree_check,sec=sys,rw,secure,root_squash,no_all_squash)
+
+server@ubuntu-task1738-ugwnr:~$ `cd /srv/share/upload`
+
+server@ubuntu-task1738-ugwnr:/srv/share/upload$ `touch test.txt`
+
+server@ubuntu-task1738-ugwnr:/srv/share/upload$ `ls`
+test.txt
+
+server@ubuntu-task1738-ugwnr:/srv/share/upload$ `sudo reboot`
+
+Клиент
+
+client@ubuntu-task1739-qilpn:~$ `sudo apt update`
+
+client@ubuntu-task1739-qilpn:~$ `sudo apt install nfs-common`
+
+client@ubuntu-task1739-qilpn:~$ `sudo nano /etc/fstab`
+UUID=be2c7c06-cc2b-4d4b-96c6-e3700932b129 /               ext4    errors=remount-ro 0       1
+158.160.21.147:/srv/share/ /mnt nfs vers=3,noauto,x-systemd.automount 0 0
+
+client@ubuntu-task1739-qilpn:~$ `sudo systemctl daemon-reload`
+
+client@ubuntu-task1739-qilpn:~$ `sudo systemctl restart remote-fs.target`
+
+client@ubuntu-task1739-qilpn:~$ `mount | grep mnt`
+systemd-1 on /mnt type autofs (rw,relatime,fd=57,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=26420)
+
+client@ubuntu-task1739-qilpn:~$ `cd /mnt/upload`
+
+client@ubuntu-task1739-qilpn:/mnt/upload$ `ls`
+test.txt
+
+client@ubuntu-task1739-qilpn:/mnt/upload$ `touch test2.txt`
+
+client@ubuntu-task1739-qilpn:/mnt/upload$ `sudo reboot`
+
+После reboot
+server@ubuntu-task1738-ugwnr:~$ `ls /srv/share/upload`
+test2.txt  test.txt
+
+server@ubuntu-task1738-ugwnr:~$ `sudo exportfs -s`
+/srv/share  158.160.1.93(rw,wdelay,root_squash,no_subtree_check,sec=sys,rw,secure,root_squash,no_all_squash)
+
+server@ubuntu-task1738-ugwnr:~$ `sudo showmount -a 158.160.21.147`
+All mount points on 158.160.21.147:
+158.160.1.93:/srv/share
+
+После reboot
+client@ubuntu-task1739-qilpn:~$ `ls /mnt/upload`
+test2.txt  test.txt
+
+client@ubuntu-task1739-qilpn:~$ `sudo showmount -a 158.160.21.147`
+All mount points on 158.160.21.147:
+158.160.1.93:/srv/share
+
+client@ubuntu-task1739-qilpn:~$ `cd /mnt/upload`
+
+client@ubuntu-task1739-qilpn:/mnt/upload$ `mount | grep mnt`
+systemd-1 on /mnt type autofs (rw,relatime,fd=49,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=16467)
+158.160.21.147:/srv/share/ on /mnt type nfs (rw,relatime,vers=3,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=158.160.21.147,mountvers=3,mountport=37964,mountproto=udp,local_lock=none,addr=158.160.21.147)
+
+
+
+
+
+
+
+
+
+
+
+
+

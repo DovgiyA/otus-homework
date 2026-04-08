@@ -1,0 +1,5 @@
+---
+- name: Restart barman
+  command: barman cron
+  become: yes
+  become_user: barman

@@ -1,0 +1,12 @@
+---
+- name: Configure ELK Log Server
+  hosts: log
+  become: true
+  roles:
+    - elk
+
+- name: Configure Web Server
+  hosts: web
+  become: true
+  roles:
+    - web

@@ -1,0 +1,50 @@
+---
+- name: Install OpenVPN and iperf3
+  apt:
+    name:
+      - openvpn
+      - iperf3
+    state: present
+    update_cache: yes
+
+- name: Generate static key if not exists
+  command: openvpn --genkey --secret /etc/openvpn/static.key
+  args:
+    creates: /etc/openvpn/static.key
+  when: inventory_hostname == groups['vpn_p2p'][0]
+
+- name: Fetch static key from server
+  fetch:
+    src: /etc/openvpn/static.key
+    dest: /tmp/static.key
+    flat: yes
+  when: inventory_hostname == groups['vpn_p2p'][0]
+
+- name: Copy static key to client
+  copy:
+    src: /tmp/static.key
+    dest: /etc/openvpn/static.key
+  when: inventory_hostname == groups['vpn_p2p'][1]
+
+- name: Configure OpenVPN (tun mode)
+  template:
+    src: "openvpn_{{ mode }}.conf.j2"
+    dest: "/etc/openvpn/{{ mode }}.conf"
+  vars:
+    mode: "tun"
+
+- name: Configure OpenVPN (tap mode)
+  template:
+    src: "openvpn_{{ mode }}.conf.j2"
+    dest: "/etc/openvpn/{{ mode }}.conf"
+  vars:
+    mode: "tap"
+
+- name: Ensure OpenVPN is started
+  systemd:
+    name: "openvpn@{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - tun
+    - tap

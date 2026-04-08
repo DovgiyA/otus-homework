@@ -1,0 +1,17 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Start Nginx
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Create custom index
+  copy:
+    content: "Welcome to CentralServer via Port Forwarding!"
+    dest: /var/www/html/index.html

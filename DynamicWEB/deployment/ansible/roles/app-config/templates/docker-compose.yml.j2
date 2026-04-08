@@ -1,0 +1,55 @@
+services:
+  librespeed:
+    image: librespeed:latest
+    container_name: librespeed
+    environment:
+      MODE: standalone
+      TELEMETRY: "true"
+      WEBPORT: "{{ app_port }}"
+      TITLE: "LibreSpeed Test"
+      PASSWORD: "admin123"
+      ENABLE_ID_OBFUSCATION: "false"
+      REDACT_IP_ADDRESSES: "false"
+      DB_TYPE: postgresql
+      DB_HOSTNAME: postgres
+      DB_NAME: "{{ db_name }}"
+      DB_USERNAME: "{{ db_user }}"
+      DB_PASSWORD: "{{ db_password }}"
+    ports:
+      - "{{ app_port }}:{{ app_port }}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ app_port }}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - librespeed_net
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: "{{ db_user }}"
+      POSTGRES_PASSWORD: "{{ db_password }}"
+      POSTGRES_DB: "{{ db_name }}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ db_user }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - librespeed_net
+
+volumes:
+  postgres_data:
+
+networks:
+  librespeed_net:
+    name: librespeed_net

@@ -1,0 +1,20 @@
+frr version 7.2.1
+frr defaults traditional
+hostname {{ inventory_hostname }}
+log syslog informational
+service integrated-vtysh-config
+!
+{% for iface in interfaces %}
+interface {{ iface.name }}
+ ip address {{ iface.ip }}
+ ip ospf cost {{ iface.ospf_cost }}
+ ip ospf area 0
+!
+{% endfor %}
+!
+router ospf
+ ospf router-id {{ router_id }}
+ log-adjacency-changes
+!
+line vty
+!

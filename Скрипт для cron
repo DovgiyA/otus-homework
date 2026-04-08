@@ -1,0 +1,35 @@
+    #!/bin/bash
+
+    LOCK_FILE="/tmp/report_generator.lock"
+
+    REPORT_FILE="/tmp/report_$(date +%Y-%m-%d_%H:%M).txt"
+
+    END_HOUR=$(date  +%Y-%m-%d_%H:%M:%S)
+    START_HOUR=$(date -d '-1 hour' "+%Y-%m-%d %H:%M:%S")
+
+    #Функция для генерации отчета
+    generate_report_content() {
+      echo "--- Отчет за период с ${START_HOUR} по ${END_HOUR} ---" > "$REPORT_FILE"
+      sed -e 's/\([0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\).*$/\1/' -e t -e d /var/log/nginx/access.log | sort | uniq -c | head -n1 >> "$REPORT_FILE"
+      awk '{print $7}' /var/log/nginx/access.log | sort | uniq -c | head -n1 >> "$REPORT_FILE"
+      awk '{print $7}' /var/log/nginx/error.log >> "$REPORT_FILE"
+      awk '{for(i=5; i<NF; i++) printf "%s ", $i; print $NF}' /var/log/nginx/error.log >> "$REPORT_FILE"
+      awk '{print $9}' /var/log/nginx/access.log | sort | uniq -c >> "$REPORT_FILE"
+    }
+
+    if [ -f "$LOCK_FILE" ]; then
+       echo "Скрипт уже выполняется."
+       exit 1
+    fi
+
+    touch "$LOCK_FILE"
+    RECIPIENT_EMAIL="black.s.w.a.n@yandex.ru"
+    SUBJECT="Ежечасный отчет от $(date +'%Y-%m-%d %H:%M')"
+
+     generate_report_content
+
+    rm -f "$LOCK_FILE"
+
+    # Отправка отчета по электронной почте
+    mail -s "$SUBJECT" "$RECIPIENT_EMAIL" < "$REPORT_FILE"
+

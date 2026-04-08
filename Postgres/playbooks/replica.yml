@@ -1,0 +1,7 @@
+---
+- name: Configure PostgreSQL Replica
+  hosts: replica
+  become: true
+  roles:
+    - postgres-common
+    - postgres-replica

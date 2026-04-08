@@ -1,0 +1,80 @@
+---
+# Настройка PostgreSQL Replica (hot_standby)
+
+- name: Stop PostgreSQL on replica
+  systemd:
+    name: postgresql
+    state: stopped
+
+- name: Remove default PostgreSQL data directory
+  file:
+    path: /var/lib/postgresql/14/main
+    state: absent
+
+- name: Create empty data directory
+  file:
+    path: /var/lib/postgresql/14/main
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+
+- name: Create pgpass file for replicator
+  become: yes
+  become_user: postgres
+  copy:
+    content: "192.168.50.11:5432:replication:replicator:ReplicaPass123\n"
+    dest: /var/lib/postgresql/.pgpass
+    owner: postgres
+    group: postgres
+    mode: '0600'
+
+- name: Run pg_basebackup from master
+  become: yes
+  become_user: postgres
+  command: >
+    pg_basebackup
+    -h 192.168.50.11
+    -U replicator
+    -D /var/lib/postgresql/14/main
+    -P -Xs -R
+    -S standby_slot
+  args:
+    creates: /var/lib/postgresql/14/main/PG_VERSION
+
+- name: Deploy postgresql.conf for replica
+  template:
+    src: postgresql.conf.j2
+    dest: /etc/postgresql/14/main/postgresql.conf
+    owner: postgres
+    group: postgres
+    mode: '0644'
+
+- name: Deploy pg_hba.conf for replica
+  template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/14/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: '0640'
+
+- name: Ensure standby.signal exists
+  become: yes
+  become_user: postgres
+  file:
+    path: /var/lib/postgresql/14/main/standby.signal
+    state: touch
+    owner: postgres
+    group: postgres
+    mode: '0600'
+
+- name: Start PostgreSQL on replica
+  systemd:
+    name: postgresql
+    state: started
+
+- name: Wait for PostgreSQL replica to start
+  wait_for:
+    port: 5432
+    delay: 5
+    timeout: 30

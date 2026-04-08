@@ -1,0 +1,18 @@
+dev tun
+ifconfig 10.8.0.{{ '1' if inventory_hostname == groups['vpn_p2p'][0] else '2' }} 10.8.0.{{ '2' if inventory_hostname == groups['vpn_p2p'][0] else '1' }}
+secret /etc/openvpn/static.key
+{% if inventory_hostname == groups['vpn_p2p'][1] %}
+remote 192.168.50.11
+{% else %}
+# Server side
+remote 192.168.50.12
+{% endif %}
+port 1194
+keepalive 10 60
+user nobody
+group nogroup
+persist-key
+persist-tun
+status /var/log/openvpn-status-tun.log
+log /var/log/openvpn-tun.log
+verb 3

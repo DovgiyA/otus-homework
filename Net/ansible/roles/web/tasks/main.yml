@@ -1,0 +1,13 @@
+---
+- name: Install Nginx
+  become: true
+  package:
+    name: nginx
+    state: present
+
+- name: Start Nginx
+  become: true
+  service:
+    name: nginx
+    state: started
+    enabled: true

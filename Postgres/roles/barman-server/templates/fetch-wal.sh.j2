@@ -1,0 +1,13 @@
+#!/bin/bash
+# Script to fetch WAL files from PostgreSQL master
+
+MASTER_HOST="192.168.50.11"
+MASTER_USER="postgres"
+MASTER_ARCHIVE_DIR="/var/lib/postgresql/14/archive"
+BARMAN_INCOMING_DIR="/var/lib/barman/master/incoming"
+
+# Create incoming directory if it doesn't exist
+mkdir -p "$BARMAN_INCOMING_DIR"
+
+# Sync WAL files from master
+rsync -avz --remove-source-files "$MASTER_USER@$MASTER_HOST:$MASTER_ARCHIVE_DIR/" "$BARMAN_INCOMING_DIR/"

@@ -1,0 +1,60 @@
+---
+- name: Configure common packages
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Configure bond between inetRouter and centralRouter
+  hosts: bond
+  become: true
+  roles:
+    - bond
+
+- name: Configure VLANs on centralRouter
+  hosts: centralRouter
+  become: true
+  vars:
+    vlans:
+      - { id: 10, ip: "10.10.10.1" }
+      - { id: 20, ip: "10.10.20.1" }
+  roles:
+    - vlan
+
+- name: Configure VLAN 10 on testClient1
+  hosts: testClient1
+  become: true
+  vars:
+    vlan_id: 10
+    vlan_ip: "10.10.10.10"
+    vlan_gateway: "10.10.10.1"
+  roles:
+    - vlan
+
+- name: Configure VLAN 10 on testServer1
+  hosts: testServer1
+  become: true
+  vars:
+    vlan_id: 10
+    vlan_ip: "10.10.10.20"
+  roles:
+    - vlan
+
+- name: Configure VLAN 20 on testClient2
+  hosts: testClient2
+  become: true
+  vars:
+    vlan_id: 20
+    vlan_ip: "10.10.20.10"
+    vlan_gateway: "10.10.20.1"
+  roles:
+    - vlan
+
+- name: Configure VLAN 20 on testServer2
+  hosts: testServer2
+  become: true
+  vars:
+    vlan_id: 20
+    vlan_ip: "10.10.20.20"
+  roles:
+    - vlan

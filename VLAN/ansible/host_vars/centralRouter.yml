@@ -1,0 +1,5 @@
+---
+bond_ip: "192.168.10.20"
+bond_slave1: "eth1"
+bond_slave2: "eth2"
+vlan_interface: eth3

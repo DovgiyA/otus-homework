@@ -1,0 +1,44 @@
+---
+- name: Enable IP forwarding
+  become: true
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Add static route to central network
+  become: true
+  command: ip route add 192.168.0.0/28 via 192.168.255.2
+  register: route_add
+  failed_when: 
+    - route_add.rc != 0 
+    - "'File exists' not in route_add.stderr"
+  changed_when: route_add.rc == 0
+
+- name: Install iptables-persistent
+  become: true
+  package:
+    name: iptables-persistent
+    state: present
+
+- name: Configure DNAT for port forwarding (8080 -> 80)
+  become: true
+  iptables:
+    table: nat
+    chain: PREROUTING
+    protocol: tcp
+    destination_port: 8080
+    jump: DNAT
+    to_destination: 192.168.0.2:80
+
+- name: Configure SNAT (Masquerade) for return traffic
+  become: true
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    protocol: tcp
+    destination: 192.168.0.2
+    destination_port: 80
+    jump: MASQUERADE

@@ -1,0 +1,104 @@
+upstream librespeed_backend {
+    server 127.0.0.1:{{ app_port }};
+}
+
+# Rate limiting zones
+limit_req_zone $binary_remote_addr zone=download_limit:10m rate=100r/m;
+limit_req_zone $binary_remote_addr zone=upload_limit:10m rate=50r/m;
+
+server {
+    listen 80 default_server;
+    server_name _;
+
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
+    gzip_min_length 1000;
+    gzip_proxied any;
+
+    # Common proxy headers
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Download test endpoint - rate limited, no buffering for streaming
+    location ~ ^/backend/garbage\.php {
+        limit_req zone=download_limit burst=10 nodelay;
+        proxy_pass http://librespeed_backend;
+        proxy_buffering off;
+    }
+
+    # Upload test endpoint - rate limited, large body allowed
+    location ~ ^/backend/empty\.php {
+        limit_req zone=upload_limit burst=5 nodelay;
+        proxy_pass http://librespeed_backend;
+        client_max_body_size 100M;
+    }
+
+    # IP detection
+    location ~ ^/backend/getIP\.php {
+        proxy_pass http://librespeed_backend;
+    }
+
+    # Results / Telemetry
+    location /results {
+        proxy_pass http://librespeed_backend;
+    }
+
+    # Static content and default
+    location / {
+        proxy_pass http://librespeed_backend;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+
+    ssl_certificate /etc/nginx/ssl/librespeed.crt;
+    ssl_certificate_key /etc/nginx/ssl/librespeed.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
+    gzip_min_length 1000;
+    gzip_proxied any;
+
+    # Common proxy headers
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Download test endpoint
+    location ~ ^/backend/garbage\.php {
+        limit_req zone=download_limit burst=10 nodelay;
+        proxy_pass http://librespeed_backend;
+        proxy_buffering off;
+    }
+
+    # Upload test endpoint
+    location ~ ^/backend/empty\.php {
+        limit_req zone=upload_limit burst=5 nodelay;
+        proxy_pass http://librespeed_backend;
+        client_max_body_size 100M;
+    }
+
+    # IP detection
+    location ~ ^/backend/getIP\.php {
+        proxy_pass http://librespeed_backend;
+    }
+
+    # Results / Telemetry
+    location /results {
+        proxy_pass http://librespeed_backend;
+    }
+
+    # Static content and default
+    location / {
+        proxy_pass http://librespeed_backend;
+    }
+}

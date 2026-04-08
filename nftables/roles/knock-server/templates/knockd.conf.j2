@@ -1,0 +1,14 @@
+[options]
+    UseSyslog
+
+[openSSH]
+    sequence    = 7000,8000,9000
+    seq_timeout = 5
+    command     = /usr/sbin/nft add element ip filter knock_whitelist { %IP% }
+    tcpflags    = syn
+
+[closeSSH]
+    sequence    = 9000,8000,7000
+    seq_timeout = 5
+    command     = /usr/sbin/nft delete element ip filter knock_whitelist { %IP% }
+    tcpflags    = syn

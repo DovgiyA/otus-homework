@@ -1,0 +1,70 @@
+- name: Install and enroll FreeIPA client
+  hosts: ipa_client
+  become: true
+  vars:
+    ipa_domain: ldap.local
+    ipa_realm: LDAP.LOCAL
+    ipa_server_fqdn: ipa-server.ldap.local
+    ipa_admin_principal: admin
+    ipa_admin_password: AdminPassw0rd!
+    ipa_server_ip: 172.16.1.10
+    ipa_client_firewall_ports:
+      - 22/tcp
+      - 88/tcp
+      - 88/udp
+      - 464/tcp
+      - 464/udp
+      - 123/udp
+      - 389/tcp
+      - 636/tcp
+  tasks:
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - freeipa-client
+          - firewalld
+          - sssd
+          - oddjob
+          - oddjob-mkhomedir
+        state: present
+
+    - name: Ensure firewalld is enabled and started
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open LDAP client firewall ports
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: "{{ ipa_client_firewall_ports }}"
+
+    - name: Check if IPA client is already configured
+      ansible.builtin.stat:
+        path: /etc/ipa/default.conf
+      register: ipa_client_config
+
+    - name: Add IPA server to /etc/hosts for DNS resolution
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "{{ ipa_server_ip }} {{ ipa_server_fqdn }} {{ ipa_server_fqdn.split('.')[0] }}"
+        regexp: ".*{{ ipa_server_fqdn }}.*"
+        state: present
+
+    - name: Enroll FreeIPA client (unattended)
+      ansible.builtin.command: >-
+        ipa-client-install
+        --unattended
+        --domain={{ ipa_domain }}
+        --realm={{ ipa_realm }}
+        --server={{ ipa_server_fqdn }}
+        --principal={{ ipa_admin_principal }}
+        --password={{ ipa_admin_password }}
+        --mkhomedir
+        --force-join
+        --force
+      when: not ipa_client_config.stat.exists
+      changed_when: true

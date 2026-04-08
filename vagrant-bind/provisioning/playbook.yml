@@ -1,0 +1,225 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Update package manager cache
+      dnf:
+        name: "*"
+        state: latest
+
+    - name: Install required packages
+      dnf:
+        name:
+          - bind
+          - bind-utils
+          - policycoreutils-python-utils
+          - selinux-policy-devel
+        state: present
+
+    - name: Copy TSIG zonetransfer key
+      copy:
+        src: named.zonetransfer.key
+        dest: /etc/named.zonetransfer.key
+        owner: root
+        group: named
+        mode: '0644'
+
+# Master (ns01) configuration
+- hosts: ns01
+  become: yes
+  tasks:
+    - name: Copy master named.conf
+      copy:
+        src: master-named.conf
+        dest: /etc/named.conf
+        owner: root
+        group: named
+        mode: '0640'
+
+    - name: Copy zone files (full, client1, client2 views)
+      copy:
+        src: "{{ item }}"
+        dest: /etc/named/
+        owner: root
+        group: named
+        mode: '0660'
+      with_items:
+        - named.dns.lab
+        - named.dns.lab.client1
+        - named.dns.lab.client2
+        - named.newdns.lab
+        - named.newdns.lab.client1
+        - named.dns.lab.rev
+        - named.ddns.lab
+
+    - name: Create slaves directory for zone transfer
+      file:
+        path: /var/named/slaves
+        state: directory
+        owner: root
+        group: named
+        mode: '0770'
+
+    - name: Set permissions for /etc/named
+      file:
+        path: /etc/named
+        owner: root
+        group: named
+        mode: '0770'
+        recurse: yes
+
+    - name: Apply SELinux contexts
+      shell: "{{ item }}"
+      with_items:
+        - semanage fcontext -a -t named_zone_t "/etc/named/named.*" || true
+        - semanage fcontext -a -t named_zone_t "/var/named/slaves(/.*)?" || true
+        - restorecon -R /etc/named/
+        - restorecon -R /var/named/
+      ignore_errors: yes
+
+    - name: Set named SELinux booleans
+      seboolean:
+        name: named_write_master_zones
+        state: yes
+        persistent: yes
+
+    - name: Copy resolv.conf to servers
+      copy:
+        src: servers-resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Start and enable named
+      systemd:
+        name: named
+        state: restarted
+        enabled: yes
+
+    - name: Verify SELinux status
+      command: getenforce
+      register: selinux_check
+
+    - name: Display SELinux status
+      debug:
+        msg: "SELinux status: {{ selinux_check.stdout }}"
+
+# Slave (ns02) configuration
+- hosts: ns02
+  become: yes
+  tasks:
+    - name: Copy slave named.conf
+      copy:
+        src: slave-named.conf
+        dest: /etc/named.conf
+        owner: root
+        group: named
+        mode: '0640'
+
+    - name: Create slaves directory for zone transfer
+      file:
+        path: /var/named/slaves
+        state: directory
+        owner: root
+        group: named
+        mode: '0770'
+
+    - name: Set permissions for /etc/named
+      file:
+        path: /etc/named
+        owner: root
+        group: named
+        mode: '0770'
+        recurse: yes
+
+    - name: Apply SELinux contexts
+      shell: "{{ item }}"
+      with_items:
+        - semanage fcontext -a -t named_zone_t "/var/named/slaves(/.*)?" || true
+        - restorecon -R /var/named/
+      ignore_errors: yes
+
+    - name: Set named SELinux booleans
+      seboolean:
+        name: named_write_master_zones
+        state: yes
+        persistent: yes
+
+    - name: Copy resolv.conf to servers
+      copy:
+        src: servers-resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Start and enable named
+      systemd:
+        name: named
+        state: restarted
+        enabled: yes
+
+    - name: Verify SELinux status
+      command: getenforce
+      register: selinux_check
+
+    - name: Display SELinux status
+      debug:
+        msg: "SELinux status: {{ selinux_check.stdout }}"
+
+# Client (192.168.50.15) configuration
+- hosts: client
+  become: yes
+  tasks:
+    - name: Copy client resolv.conf
+      copy:
+        src: client-resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy rndc.conf
+      copy:
+        src: rndc.conf
+        dest: /home/vagrant/rndc.conf
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Copy client motd
+      copy:
+        src: client-motd
+        dest: /etc/motd
+        owner: root
+        group: root
+        mode: '0644'
+
+# Client2 (192.168.50.16) configuration
+- hosts: client2
+  become: yes
+  tasks:
+    - name: Copy client2 resolv.conf
+      copy:
+        src: client2-resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy rndc.conf
+      copy:
+        src: rndc.conf
+        dest: /home/vagrant/rndc.conf
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Copy client motd
+      copy:
+        src: client-motd
+        dest: /etc/motd
+        owner: root
+        group: root
+        mode: '0644'

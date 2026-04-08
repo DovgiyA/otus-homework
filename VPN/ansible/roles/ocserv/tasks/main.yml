@@ -1,0 +1,55 @@
+---
+- name: Install ocserv
+  apt:
+    name: ocserv
+    state: present
+    update_cache: yes
+
+- name: Create directory for ocserv certs
+  file:
+    path: /etc/ocserv/certs
+    state: directory
+
+- name: Generate self-signed CA and server cert for ocserv
+  shell: |
+    cd /etc/ocserv/certs
+    certtool --generate-privkey --outfile ca-key.pem
+    cat <<EOF > ca.tmpl
+    cn = "VPN CA"
+    organization = "OTUS"
+    serial = 1
+    expiration_days = 365
+    ca
+    signing_key
+    cert_signing_key
+    crl_signing_key
+    EOF
+    certtool --generate-self-signed --load-privkey ca-key.pem --template ca.tmpl --outfile ca-cert.pem
+    certtool --generate-privkey --outfile server-key.pem
+    cat <<EOF > server.tmpl
+    cn = "192.168.50.13"
+    organization = "OTUS"
+    expiration_days = 365
+    signing_key
+    encryption_key
+    tls_www_server
+    EOF
+    certtool --generate-certificate --load-privkey server-key.pem --load-ca-privkey ca-key.pem --load-ca-certificate ca-cert.pem --template server.tmpl --outfile server-cert.pem
+  args:
+    creates: /etc/ocserv/certs/server-cert.pem
+
+- name: Configure ocserv
+  template:
+    src: ocserv.conf.j2
+    dest: /etc/ocserv/ocserv.conf
+
+- name: Create vpnuser for ocserv
+  shell: echo "vpnpassword" | ocpasswd -c /etc/ocserv/ocpasswd vpnuser
+  args:
+    creates: /etc/ocserv/ocpasswd
+
+- name: Start ocserv
+  systemd:
+    name: ocserv
+    state: started
+    enabled: yes

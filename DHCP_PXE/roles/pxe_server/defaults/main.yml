@@ -1,0 +1,40 @@
+---
+# Network configuration
+pxe_network: "192.168.50.0"
+pxe_netmask: "255.255.255.0"
+pxe_server_ip: "192.168.50.10"
+pxe_gateway: "192.168.50.1"
+pxe_dns_servers:
+  - "8.8.8.8"
+  - "8.8.4.4"
+
+# DHCP configuration
+dhcp_range_start: "192.168.50.100"
+dhcp_range_end: "192.168.50.200"
+dhcp_lease_time: 600
+dhcp_max_lease_time: 7200
+
+# Ubuntu configuration
+ubuntu_version: "24.04"
+ubuntu_codename: "noble"
+ubuntu_iso_url: "https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso"
+ubuntu_iso_path: "/opt/ubuntu-24.04.3-live-server-amd64.iso"
+ubuntu_mount_path: "/mnt/ubuntu-iso"
+ubuntu_web_path: "/var/www/html/ubuntu"
+
+# TFTP configuration
+tftp_root: "/var/lib/tftpboot"
+tftp_address: "{{ pxe_server_ip }}"
+
+# Autoinstall configuration
+autoinstall_path: "/var/www/html/autoinstall"
+autoinstall_user: "ubuntu"
+autoinstall_password: "ubuntu"  # This will be hashed
+autoinstall_hostname: "ubuntu-client"
+
+# Boot files (local)
+shim_source_path: "/usr/lib/shim/shimx64.efi.signed"
+grub_source_path: "/usr/lib/grub/x86_64-efi-signed/grubnetx64.efi.signed"
+# These will be copied from the mounted ISO
+kernel_source_path: "{{ ubuntu_mount_path }}/casper/vmlinuz"
+initrd_source_path: "{{ ubuntu_mount_path }}/casper/initrd"

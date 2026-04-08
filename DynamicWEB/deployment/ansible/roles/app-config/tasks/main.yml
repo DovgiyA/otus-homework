@@ -1,0 +1,143 @@
+---
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Build Docker image on host (ARM64 native)
+  delegate_to: localhost
+  become: false
+  connection: local
+  shell: "docker build -t librespeed:latest ."
+  args:
+    chdir: "{{ project_root }}"
+  register: docker_build
+  changed_when: true
+
+- name: Save Docker image to tar
+  delegate_to: localhost
+  become: false
+  connection: local
+  command: docker save -o /tmp/librespeed.tar librespeed:latest
+  changed_when: true
+
+- name: Get vagrant SSH config
+  delegate_to: localhost
+  become: false
+  connection: local
+  shell: "vagrant ssh-config default"
+  args:
+    chdir: "{{ project_root }}"
+  register: ssh_config_raw
+  changed_when: false
+
+- name: Write temporary SSH config
+  delegate_to: localhost
+  become: false
+  connection: local
+  copy:
+    content: "{{ ssh_config_raw.stdout }}"
+    dest: /tmp/vagrant_ssh_config
+    mode: "0600"
+
+- name: Copy Docker image to VM via scp
+  delegate_to: localhost
+  become: false
+  connection: local
+  command: >
+    scp -F /tmp/vagrant_ssh_config
+    /tmp/librespeed.tar
+    default:/tmp/librespeed.tar
+
+- name: Load Docker image on VM
+  command: docker load -i /tmp/librespeed.tar
+  register: docker_load
+  changed_when: true
+
+- name: Show load result
+  debug:
+    msg: "{{ docker_load.stdout }}"
+
+- name: Cleanup tar on VM
+  file:
+    path: /tmp/librespeed.tar
+    state: absent
+
+- name: Cleanup tar on host
+  delegate_to: localhost
+  become: false
+  connection: local
+  file:
+    path: /tmp/librespeed.tar
+    state: absent
+
+- name: Cleanup SSH config on host
+  delegate_to: localhost
+  become: false
+  connection: local
+  file:
+    path: /tmp/vagrant_ssh_config
+    state: absent
+
+- name: Copy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Stop existing containers
+  shell: docker compose down --remove-orphans 2>/dev/null || true
+  args:
+    chdir: "{{ app_dir }}"
+
+- name: Start Docker containers
+  shell: docker compose up -d
+  args:
+    chdir: "{{ app_dir }}"
+
+- name: Wait for LibreSpeed container to be healthy
+  command: docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' librespeed
+  register: health_check
+  until: health_check.stdout == "healthy"
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Print container status
+  command: docker ps
+  register: docker_ps
+  changed_when: false
+
+- name: Show running containers
+  debug:
+    msg: "{{ docker_ps.stdout_lines }}"
+
+- name: Check if telemetry table exists
+  shell: docker exec postgres psql -U {{ db_user }} -d {{ db_name }} -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'speedtest_users');"
+  register: table_exists
+  changed_when: false
+
+- name: Initialize telemetry database schema
+  shell: |
+    docker exec -i postgres psql -U {{ db_user }} -d {{ db_name }} << 'EOF'
+    CREATE TABLE IF NOT EXISTS speedtest_users (
+        id integer NOT NULL,
+        "timestamp" timestamp without time zone DEFAULT now() NOT NULL,
+        ip text NOT NULL,
+        ispinfo text,
+        extra text,
+        ua text NOT NULL,
+        lang text NOT NULL,
+        dl text,
+        ul text,
+        ping text,
+        jitter text,
+        log text
+    );
+    CREATE SEQUENCE IF NOT EXISTS speedtest_users_id_seq START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+    ALTER SEQUENCE speedtest_users_id_seq OWNED BY speedtest_users.id;
+    ALTER TABLE ONLY speedtest_users ALTER COLUMN id SET DEFAULT nextval('speedtest_users_id_seq'::regclass);
+    ALTER TABLE ONLY speedtest_users ADD CONSTRAINT speedtest_users_pkey PRIMARY KEY (id);
+    EOF
+  when: table_exists.stdout.strip() == 'f'

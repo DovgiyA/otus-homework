@@ -1,0 +1,53 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - vim
+      - tcpdump
+      - net-tools
+      - iproute2
+      - vlan
+      - open-vm-tools
+    state: present
+    update_cache: yes
+
+- name: Ensure systemd-networkd is enabled and started
+  systemd:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
+- name: Load 8021q kernel module
+  modprobe:
+    name: 8021q
+    state: present
+
+- name: Ensure 8021q module is loaded at boot
+  copy:
+    content: "8021q\n"
+    dest: /etc/modules-load.d/vlan.conf
+    mode: '0644'
+
+- name: Load bonding kernel module
+  modprobe:
+    name: bonding
+    state: present
+
+- name: Ensure bonding module is loaded at boot
+  copy:
+    content: "bonding\n"
+    dest: /etc/modules-load.d/bonding.conf
+    mode: '0644'
+
+- name: Find netplan YAML files
+  find:
+    paths: /etc/netplan
+    patterns: "*.yaml"
+    file_type: file
+  register: netplan_files
+
+- name: Fix permissions for netplan YAML files
+  file:
+    path: "{{ item.path }}"
+    mode: '0600'
+  loop: "{{ netplan_files.files }}"

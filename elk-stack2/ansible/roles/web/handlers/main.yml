@@ -1,0 +1,21 @@
+---
+- name: restart nginx
+  systemd:
+    name: nginx
+    state: restarted
+
+- name: restart auditd
+  service:
+    name: auditd
+    state: restarted
+    use: service  # auditd sometimes has issues with systemd restart, usage of service module is safer or augment with `augenrules --load`
+
+- name: restart filebeat
+  systemd:
+    name: filebeat
+    state: restarted
+
+- name: restart auditbeat
+  systemd:
+    name: auditbeat
+    state: restarted

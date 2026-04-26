@@ -1,0 +1,98 @@
+---
+# When backend-db host fails:
+# Backup host gets PostgreSQL + backend roles to serve application traffic.
+# Note: db-replica host has the streaming replica that can be promoted separately.
+#
+# Usage: ansible-playbook playbooks/failover-to-db-primary.yml --ask-vault-pass
+#
+# After running this playbook, update DNS/frontend nginx config
+# to point to the backup host's IP.
+
+- name: Failover - Promote backup to DB primary + backend
+  hosts: backup_group
+  become: true
+
+  tasks:
+    - name: Flush handlers from roles
+      ansible.builtin.meta: flush_handlers
+
+    - name: Check if PostgreSQL is in recovery mode
+      become_user: postgres
+      ansible.builtin.command: psql -tAc "SELECT pg_is_in_recovery();"
+      register: recovery_status
+      changed_when: false
+
+    - name: Promote PostgreSQL replica to primary
+      ansible.builtin.command: pg_ctlcluster {{ postgresql_version }} main promote
+      when: "'t' in recovery_status.stdout"
+      register: promote_result
+
+    - name: Wait for promotion to complete
+      ansible.builtin.wait_for:
+        path: "/var/lib/postgresql/{{ postgresql_version }}/main/standby.signal"
+        state: absent
+        timeout: 30
+      when: promote_result is changed
+
+    - name: Wait for PostgreSQL to accept connections
+      ansible.builtin.wait_for:
+        port: 5432
+        host: "{{ private_ip }}"
+        timeout: 30
+
+    - name: Verify PostgreSQL is primary
+      become_user: postgres
+      ansible.builtin.command: psql -tAc "SELECT pg_is_in_recovery();"
+      register: verify_primary
+      changed_when: false
+      failed_when: "'f' not in verify_primary.stdout"
+
+    - name: Update firewall for backend traffic
+      community.general.ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+  roles:
+    - { role: postgresql, tags: [postgresql] }
+    - role: backend
+      tags: [backend]
+      vars:
+        # On the backup host itself, the database is now local
+        backend_db_ip: "localhost"
+    - { role: fluentd,    tags: [fluentd] }
+
+  post_tasks:
+    - name: Display DB failover status
+      ansible.builtin.debug:
+        msg: |
+          Failover complete. Backup host is now:
+          - PostgreSQL primary (port 5432)
+          - Backend server (port 80)
+          Next steps:
+          1. Verify application is working
+          2. Plan recovery of original backend-db host
+
+- name: Update frontend configuration to point to backup DB
+  hosts: frontend_group
+  become: true
+  vars:
+    speedtest_root: "/var/www/speedtest"
+  tasks:
+    - name: Update Nginx configuration with new backend IP
+      ansible.builtin.template:
+        src: ../roles/frontend/templates/nginx-speedtest.conf.j2
+        dest: /etc/nginx/sites-available/speedtest.conf
+        mode: "0644"
+      vars:
+        # Override backend_db_ip with the private IP of the backup host
+        backend_db_ip: "{{ hostvars['backup']['private_ip'] }}"
+
+    - name: Reload Nginx on frontend
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Display frontend update status
+      ansible.builtin.debug:
+        msg: "Frontend has been updated to use backup DB at {{ hostvars['backup']['private_ip'] }}"

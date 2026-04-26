@@ -1,0 +1,4 @@
+---
+pg_backup_dir: "/var/backups/postgresql"
+backup_retention_daily: 3
+s3_endpoint: "https://storage.yandexcloud.net"

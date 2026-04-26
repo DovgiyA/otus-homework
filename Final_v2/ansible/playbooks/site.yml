@@ -1,0 +1,59 @@
+---
+# Phase 1: Base setup on all hosts
+- name: Base configuration for all hosts
+  hosts: all
+  become: true
+  roles:
+    - { role: common,        tags: [common] }
+    - { role: firewall,      tags: [firewall] }
+    - { role: node_exporter, tags: [node_exporter] }
+
+# Phase 2: Backend + DB primary (must run before monitoring for Grafana DB)
+- name: Deploy backend and database
+  hosts: backend_db_group
+  become: true
+  roles:
+    - { role: postgresql, tags: [postgresql] }
+    - { role: pg_backup,  tags: [pg_backup] }
+    - { role: backend,    tags: [backend] }
+    - { role: fluentd,    tags: [fluentd] }
+
+# Phase 3: Monitoring stack (Elasticsearch BEFORE Fluentd)
+- name: Deploy monitoring stack
+  hosts: monitoring
+  become: true
+  roles:
+    - { role: elasticsearch,     tags: [elasticsearch] }
+    - { role: kibana,            tags: [kibana] }
+    - { role: blackbox_exporter, tags: [blackbox] }
+    - { role: prometheus,        tags: [prometheus] }
+    - { role: alertmanager,      tags: [alertmanager] }
+    - { role: grafana,           tags: [grafana] }
+    - { role: fluentd,           tags: [fluentd] }
+
+# Phase 4: DB replica (replication only)
+- name: Deploy database replica
+  hosts: db_replica_group
+  become: true
+  roles:
+    - { role: pg_standby, tags: [pg_standby] }
+    - { role: fluentd,    tags: [fluentd] }
+
+# Phase 5: Frontend + local backend + SSL
+- name: Deploy frontend with SSL
+  hosts: frontend_group
+  become: true
+  roles:
+    - { role: backend,  tags: [backend] }
+    - { role: frontend, tags: [frontend] }
+    - { role: certbot,  tags: [certbot] }
+    - { role: fluentd,  tags: [fluentd] }
+
+# Phase 6: Backup host
+- name: Deploy backup host
+  hosts: backup_group
+  become: true
+  roles:
+    - { role: fluentd, tags: [fluentd] }
+
+

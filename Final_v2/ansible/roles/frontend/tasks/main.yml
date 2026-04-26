@@ -1,0 +1,40 @@
+---
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Create speedtest web directory
+  ansible.builtin.file:
+    path: "{{ speedtest_root }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Deploy initial HTTP-only Nginx config
+  ansible.builtin.template:
+    src: nginx-initial.conf.j2
+    dest: /etc/nginx/sites-available/speedtest.conf
+    mode: "0644"
+  notify: reload nginx frontend
+
+- name: Enable Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/speedtest.conf
+    dest: /etc/nginx/sites-enabled/speedtest.conf
+    state: link
+  notify: reload nginx frontend
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: reload nginx frontend
+
+- name: Ensure Nginx is started
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: true

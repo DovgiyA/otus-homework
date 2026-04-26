@@ -1,0 +1,5 @@
+---
+- name: reload nginx frontend
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded

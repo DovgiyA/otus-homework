@@ -1,0 +1,130 @@
+---
+- name: Create prometheus user
+  ansible.builtin.user:
+    name: prometheus
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create prometheus directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0755"
+  loop:
+    - /etc/prometheus
+    - /etc/prometheus/rules
+    - /var/lib/prometheus
+    - /var/log/prometheus
+
+- name: Check if prometheus is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/prometheus
+  register: prom_binary
+
+- name: Download Prometheus
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: "0644"
+  when: not prom_binary.stat.exists
+
+- name: Extract Prometheus
+  ansible.builtin.unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /tmp
+    remote_src: true
+  when: not prom_binary.stat.exists
+
+- name: Install Prometheus binaries
+  ansible.builtin.copy:
+    src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: "0755"
+    remote_src: true
+  loop:
+    - prometheus
+    - promtool
+  when: not prom_binary.stat.exists
+  notify: restart prometheus
+
+- name: Copy console files
+  ansible.builtin.shell: |
+    cp -r /tmp/prometheus-{{ prometheus_version }}.linux-amd64/consoles /etc/prometheus/
+    cp -r /tmp/prometheus-{{ prometheus_version }}.linux-amd64/console_libraries /etc/prometheus/
+    chown -R prometheus:prometheus /etc/prometheus/consoles /etc/prometheus/console_libraries
+  args:
+    executable: /bin/bash
+  when: not prom_binary.stat.exists
+  changed_when: false
+
+- name: Install htpasswd utility
+  ansible.builtin.apt:
+    name: apache2-utils
+    state: present
+
+- name: Generate bcrypt hash for basic auth
+  ansible.builtin.command: htpasswd -nbBC 10 "" "{{ prometheus_basic_auth_password }}"
+  register: htpasswd_result
+  changed_when: false
+  no_log: false
+
+- name: Set password hash fact
+  ansible.builtin.set_fact:
+    prometheus_password_hash: "{{ htpasswd_result.stdout | regex_replace('^:', '') }}"
+  no_log: true
+
+- name: Deploy Prometheus config
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: prometheus
+    group: prometheus
+    mode: "0640"
+  notify: restart prometheus
+
+- name: Deploy alert rules
+  ansible.builtin.template:
+    src: alert_rules.yml.j2
+    dest: /etc/prometheus/rules/alert_rules.yml
+    owner: prometheus
+    group: prometheus
+    mode: "0640"
+  notify: restart prometheus
+
+- name: Validate Prometheus config
+  ansible.builtin.command: promtool check config /etc/prometheus/prometheus.yml
+  changed_when: false
+
+- name: Deploy web auth config
+  ansible.builtin.template:
+    src: web.yml.j2
+    dest: /etc/prometheus/web.yml
+    owner: prometheus
+    group: prometheus
+    mode: "0640"
+  notify: restart prometheus
+
+- name: Deploy Prometheus systemd service
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    mode: "0644"
+  notify: restart prometheus
+
+- name: Enable and start Prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Clean up temp files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/prometheus.tar.gz
+    - "/tmp/prometheus-{{ prometheus_version }}.linux-amd64"

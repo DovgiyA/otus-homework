@@ -1,0 +1,39 @@
+---
+# When frontend host fails:
+# Backup gets frontend + backend + certbot roles.
+#
+# Usage: ansible-playbook playbooks/failover-to-frontend.yml --ask-vault-pass
+#
+# After running this playbook, update DNS A record to point
+# to the backup host's public IP.
+
+- name: Failover - Convert backup to frontend
+  hosts: backup_group
+  become: true
+
+  pre_tasks:
+    - name: Update firewall for frontend traffic
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "80"
+        - "443"
+
+  roles:
+    - { role: backend,  tags: [backend] }
+    - { role: frontend, tags: [frontend] }
+    - { role: certbot,  tags: [certbot] }
+    - { role: fluentd,  tags: [fluentd] }
+
+  post_tasks:
+    - name: Display failover status
+      ansible.builtin.debug:
+        msg: |
+          Failover complete. Backup host is now acting as frontend.
+          Next steps:
+          1. Update DNS A record for {{ domain_name }} to {{ ansible_host }}
+          2. Wait for DNS propagation
+          3. Verify HTTPS is working
+          4. Plan recovery of original frontend host

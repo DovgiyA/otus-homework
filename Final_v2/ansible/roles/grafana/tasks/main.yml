@@ -1,0 +1,124 @@
+---
+- name: Download Grafana deb package
+  ansible.builtin.get_url:
+    url: "https://dl.grafana.com/oss/release/grafana_{{ grafana_version }}_amd64.deb"
+    dest: "/tmp/grafana_{{ grafana_version }}_amd64.deb"
+    mode: "0644"
+  register: grafana_download
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    deb: "/tmp/grafana_{{ grafana_version }}_amd64.deb"
+    state: present
+  when: grafana_download is succeeded
+
+- name: Deploy Grafana config
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+
+- name: Create provisioning directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0755"
+  loop:
+    - /etc/grafana/provisioning/datasources
+    - /etc/grafana/provisioning/dashboards
+    - /var/lib/grafana/dashboards
+
+- name: Deploy datasources provisioning
+  ansible.builtin.template:
+    src: datasources.yml.j2
+    dest: /etc/grafana/provisioning/datasources/datasources.yml
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+
+- name: Deploy dashboard provisioning config
+  ansible.builtin.copy:
+    dest: /etc/grafana/provisioning/dashboards/dashboards.yml
+    content: |
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          options:
+            path: /var/lib/grafana/dashboards
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+
+- name: Copy dashboard JSON files
+  ansible.builtin.copy:
+    src: "dashboards/"
+    dest: /var/lib/grafana/dashboards/
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: restart grafana
+
+- name: Enable and start Grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Wait for Grafana to be ready
+  block:
+    - name: Check Grafana health
+      ansible.builtin.uri:
+        url: "http://{{ private_ip }}:3000/api/health"
+        method: GET
+        status_code: 200
+      register: grafana_health
+      until: grafana_health.status == 200
+      retries: 15
+      delay: 5
+  rescue:
+    - name: Collect Grafana logs
+      ansible.builtin.command: journalctl -u grafana-server --no-pager -n 50
+      register: grafana_logs
+      changed_when: false
+
+    - name: Show Grafana logs
+      ansible.builtin.debug:
+        var: grafana_logs.stdout_lines
+
+    - name: Fail with diagnostics
+      ansible.builtin.fail:
+        msg: "Grafana failed to start. See logs above."
+
+- name: Update admin password
+  ansible.builtin.uri:
+    url: "http://{{ private_ip }}:3000/api/admin/users/1"
+    method: PUT
+    user: admin
+    password: admin
+    force_basic_auth: true
+    body_format: json
+    body:
+      login: "{{ grafana_admin_user }}"
+      password: "{{ grafana_admin_password }}"
+    status_code: [200]
+  register: admin_update
+  failed_when: false
+  changed_when: admin_update.status == 200
+
+- name: Clean up temp files
+  ansible.builtin.file:
+    path: "/tmp/grafana_{{ grafana_version }}_amd64.deb"
+    state: absent

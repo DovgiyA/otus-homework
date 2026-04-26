@@ -1,0 +1,43 @@
+---
+# Domain
+domain_name: "xn----ctbkoedricefmgyd0k.xn--p1ai"
+domain_name_www: "www.xn----ctbkoedricefmgyd0k.xn--p1ai"
+
+# PostgreSQL
+postgresql_version: "16"
+pg_speedtest_db: "speedtest"
+pg_speedtest_user: "speedtest"
+pg_grafana_db: "grafana"
+pg_grafana_user: "grafana"
+pg_replicator_user: "replicator"
+
+# Prometheus stack versions
+prometheus_version: "2.51.2"
+node_exporter_version: "1.8.2"
+blackbox_exporter_version: "0.25.0"
+alertmanager_version: "0.27.0"
+grafana_version: "10.4.1"
+
+# Prometheus auth
+prometheus_basic_auth_user: "rebrainme"
+
+# Grafana
+grafana_admin_user: "Alex"
+
+# Telegram
+telegram_chat_id: 1247569610
+
+# Elasticsearch / Kibana
+elasticsearch_version: "8"
+log_retention_days: 7
+
+# PHP version
+php_version: "8.3"
+
+# Timezone
+timezone: "Europe/Moscow"
+
+# Backup retention
+backup_retention_daily: 3
+backup_retention_s3_daily: 7
+backup_retention_s3_weekly: 30

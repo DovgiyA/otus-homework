@@ -1,0 +1,4 @@
+---
+firewall_allowed_ports: []
+firewall_default_incoming: "deny"
+firewall_default_outgoing: "allow"

@@ -1,6 +1,6 @@
 ---
 - name: Deploy Frontend
-  hosts: frontend_group
+  hosts: "{{ target | default('frontend_group') }}"
   become: true
   roles:
     - common

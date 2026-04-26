@@ -1,0 +1,21 @@
+---
+- name: Install Kibana
+  ansible.builtin.apt:
+    name: kibana
+    state: present
+
+- name: Deploy Kibana config
+  ansible.builtin.template:
+    src: kibana.yml.j2
+    dest: /etc/kibana/kibana.yml
+    owner: root
+    group: kibana
+    mode: "0660"
+  notify: restart kibana
+
+- name: Enable and start Kibana
+  ansible.builtin.systemd:
+    name: kibana
+    state: started
+    enabled: true
+    daemon_reload: true

@@ -1,0 +1,173 @@
+<system>
+  log_level info
+</system>
+
+# Common sources - all hosts
+<source>
+  @type tail
+  path /var/log/syslog
+  pos_file /var/log/td-agent/syslog.pos
+  tag system.syslog.{{ inventory_hostname }}
+  <parse>
+    @type syslog
+  </parse>
+</source>
+
+<source>
+  @type tail
+  path /var/log/auth.log
+  pos_file /var/log/td-agent/auth.pos
+  tag system.auth.{{ inventory_hostname }}
+  <parse>
+    @type syslog
+  </parse>
+</source>
+
+{% if 'frontend_group' in group_names %}
+# Frontend - Nginx logs
+<source>
+  @type tail
+  path /var/log/nginx/speedtest_access.log
+  pos_file /var/log/td-agent/nginx_access.pos
+  tag nginx.access.{{ inventory_hostname }}
+  <parse>
+    @type json
+  </parse>
+</source>
+
+<source>
+  @type tail
+  path /var/log/nginx/speedtest_error.log
+  pos_file /var/log/td-agent/nginx_error.pos
+  tag nginx.error.{{ inventory_hostname }}
+  <parse>
+    @type multiline
+    format_firstline /^\d{4}/\d{2}/\d{2}/
+    format1 /^(?<time>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?<log_level>\w+)\] (?<message>.*)/
+  </parse>
+</source>
+{% endif %}
+
+{% if 'backend_db_group' in group_names %}
+# Backend + DB - Nginx, PHP-FPM, PostgreSQL logs
+<source>
+  @type tail
+  path /var/log/nginx/speedtest_access.log
+  pos_file /var/log/td-agent/nginx_access.pos
+  tag nginx.access.{{ inventory_hostname }}
+  <parse>
+    @type json
+  </parse>
+</source>
+
+<source>
+  @type tail
+  path /var/log/nginx/speedtest_error.log
+  pos_file /var/log/td-agent/nginx_error.pos
+  tag nginx.error.{{ inventory_hostname }}
+  <parse>
+    @type multiline
+    format_firstline /^\d{4}/\d{2}/\d{2}/
+    format1 /^(?<time>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?<log_level>\w+)\] (?<message>.*)/
+  </parse>
+</source>
+
+<source>
+  @type tail
+  path /var/log/php-fpm/speedtest-error.log
+  pos_file /var/log/td-agent/php_fpm.pos
+  tag php.error.{{ inventory_hostname }}
+  <parse>
+    @type multiline
+    format_firstline /^\[/
+    format1 /^\[(?<time>[^\]]+)\] (?<message>.*)/
+  </parse>
+</source>
+
+<source>
+  @type tail
+  path /var/lib/postgresql/{{ postgresql_version }}/main/log/postgresql-*.log
+  pos_file /var/log/td-agent/postgresql.pos
+  tag postgresql.{{ inventory_hostname }}
+  <parse>
+    @type multiline
+    format_firstline /^\d{4}-\d{2}-\d{2}/
+    format1 /^(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+ \w+) (?<message>.*)/
+  </parse>
+</source>
+{% endif %}
+
+{% if 'db_replica_group' in group_names %}
+# DB Replica - PostgreSQL standby logs
+<source>
+  @type tail
+  path /var/lib/postgresql/{{ postgresql_version }}/main/log/postgresql-*.log
+  pos_file /var/log/td-agent/postgresql_standby.pos
+  tag postgresql.standby.{{ inventory_hostname }}
+  <parse>
+    @type multiline
+    format_firstline /^\d{4}-\d{2}-\d{2}/
+    format1 /^(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+ \w+) (?<message>.*)/
+  </parse>
+</source>
+{% endif %}
+
+{% if 'monitoring' in group_names %}
+# Monitoring - Prometheus, Elasticsearch logs
+<source>
+  @type tail
+  path /var/log/prometheus/prometheus.log
+  pos_file /var/log/td-agent/prometheus.pos
+  tag prometheus.{{ inventory_hostname }}
+  <parse>
+    @type none
+  </parse>
+</source>
+
+<source>
+  @type tail
+  path /var/log/elasticsearch/*.log
+  pos_file /var/log/td-agent/elasticsearch.pos
+  tag elasticsearch.{{ inventory_hostname }}
+  <parse>
+    @type multiline
+    format_firstline /^\[/
+    format1 /^\[(?<time>[^\]]+)\]\[(?<log_level>[^\]]+)\]\[(?<component>[^\]]+)\] (?<message>.*)/
+  </parse>
+</source>
+{% endif %}
+
+# Add hostname to all records
+<filter **>
+  @type record_transformer
+  <record>
+    hostname {{ inventory_hostname }}
+    private_ip {{ private_ip }}
+  </record>
+</filter>
+
+# Output to Elasticsearch
+<match **>
+  @type elasticsearch
+  host {{ monitoring_ip }}
+  port 9200
+  scheme http
+  logstash_format true
+  logstash_prefix fluentd
+  logstash_dateformat %Y.%m.%d
+  include_tag_key true
+  tag_key @log_name
+  flush_interval 10s
+  retry_limit 5
+  retry_wait 1s
+  <buffer>
+    @type file
+    path /var/log/td-agent/buffer/elasticsearch
+    flush_mode interval
+    flush_interval 10s
+    chunk_limit_size 8MB
+    total_limit_size 512MB
+    retry_max_interval 30
+    retry_forever false
+  </buffer>
+</match>

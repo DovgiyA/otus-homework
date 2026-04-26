@@ -1,0 +1,74 @@
+---
+- name: Add Treasure Data GPG key
+  ansible.builtin.get_url:
+    url: https://packages.treasuredata.com/GPG-KEY-td-agent
+    dest: /usr/share/keyrings/treasuredata-archive-keyring.asc
+    mode: "0644"
+
+- name: Add td-agent repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/treasuredata-archive-keyring.asc] http://packages.treasuredata.com/4/ubuntu/{{ ansible_distribution_release }}/ {{ ansible_distribution_release }} contrib"
+    state: present
+    filename: treasuredata
+
+- name: Install td-agent
+  ansible.builtin.apt:
+    name: td-agent
+    state: present
+    update_cache: true
+
+- name: Install Elasticsearch plugin
+  ansible.builtin.command: td-agent-gem install fluent-plugin-elasticsearch
+  args:
+    creates: /opt/td-agent/lib/ruby/gems/*/gems/fluent-plugin-elasticsearch-*
+  notify: restart fluentd
+
+- name: Add td-agent to required groups
+  ansible.builtin.user:
+    name: td-agent
+    groups: "{{ item }}"
+    append: true
+  loop:
+    - adm
+    - syslog
+  notify: restart fluentd
+
+- name: Deploy td-agent config
+  ansible.builtin.template:
+    src: td-agent.conf.j2
+    dest: /etc/td-agent/td-agent.conf
+    mode: "0644"
+  notify: restart fluentd
+
+- name: Create buffer directory
+  ansible.builtin.file:
+    path: /var/log/td-agent/buffer
+    state: directory
+    owner: td-agent
+    group: td-agent
+    mode: "0755"
+
+- name: Enable and start td-agent
+  ansible.builtin.systemd:
+    name: td-agent
+    state: started
+    enabled: true
+
+- name: Setup logrotate for td-agent
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/td-agent
+    content: |
+      /var/log/td-agent/td-agent.log {
+        daily
+        rotate 7
+        compress
+        delaycompress
+        notifempty
+        create 640 td-agent td-agent
+        sharedscripts
+        postrotate
+          pid=/var/run/td-agent/td-agent.pid
+          test -s $pid && kill -USR1 "$(cat $pid)"
+        endscript
+      }
+    mode: "0644"

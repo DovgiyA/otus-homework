@@ -1,0 +1,4 @@
+---
+grafana_version: "10.4.1"
+grafana_admin_user: "Alex"
+log_retention_days: 7

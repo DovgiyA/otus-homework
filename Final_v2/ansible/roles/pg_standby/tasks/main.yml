@@ -1,0 +1,81 @@
+---
+- name: Add PostgreSQL APT repository key
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /usr/share/keyrings/postgresql-archive-keyring.asc
+    mode: "0644"
+
+- name: Add PostgreSQL APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.asc] http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name:
+      - "postgresql-{{ postgresql_version }}"
+      - "postgresql-client-{{ postgresql_version }}"
+    state: present
+    update_cache: true
+
+- name: Check if standby is already configured
+  ansible.builtin.stat:
+    path: "{{ pg_data_dir }}/standby.signal"
+  register: standby_signal
+
+- name: Stop PostgreSQL for basebackup
+  ansible.builtin.systemd:
+    name: postgresql
+    state: stopped
+  when: not standby_signal.stat.exists
+
+- name: Remove existing data directory for fresh basebackup
+  ansible.builtin.file:
+    path: "{{ pg_data_dir }}"
+    state: absent
+  when: not standby_signal.stat.exists
+
+- name: Create .pgpass for replication
+  ansible.builtin.copy:
+    dest: /var/lib/postgresql/.pgpass
+    content: "{{ backend_db_ip }}:5432:replication:{{ pg_replicator_user }}:{{ pg_replicator_password }}"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+
+- name: Run pg_basebackup from primary
+  become: true
+  become_user: postgres
+  ansible.builtin.command: >
+    pg_basebackup
+    -h {{ backend_db_ip }}
+    -U {{ pg_replicator_user }}
+    -D {{ pg_data_dir }}
+    -Fp -Xs -P -R
+    -S standby_slot
+  args:
+    creates: "{{ pg_data_dir }}/standby.signal"
+
+- name: Deploy standby postgresql.conf
+  ansible.builtin.template:
+    src: postgresql_standby.conf.j2
+    dest: "{{ pg_conf_dir }}/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  notify: restart postgresql standby
+
+- name: Start PostgreSQL standby
+  ansible.builtin.systemd:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Verify standby is in recovery mode
+  become: true
+  become_user: postgres
+  ansible.builtin.command: psql -tAc "SELECT pg_is_in_recovery();"
+  register: recovery_check
+  changed_when: false
+  failed_when: "'t' not in recovery_check.stdout"

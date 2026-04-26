@@ -1,0 +1,5 @@
+---
+- name: reload nginx certbot
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded

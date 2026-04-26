@@ -1,0 +1,43 @@
+#!/bin/bash
+set -euo pipefail
+
+BACKUP_DIR="{{ pg_backup_dir }}"
+TIMESTAMP=$(date +%Y-%m-%d_%H%M%S)
+S3_BUCKET="{{ s3_bucket }}"
+S3_ENDPOINT="{{ s3_endpoint }}"
+RETENTION_DAYS={{ backup_retention_daily }}
+
+echo "=== PostgreSQL Backup Started at $(date) ==="
+
+# Daily pg_dump
+for DB in {{ pg_speedtest_db }} {{ pg_grafana_db }}; do
+    DUMP_FILE="${BACKUP_DIR}/${DB}_${TIMESTAMP}.sql.gz"
+    pg_dump -U postgres "${DB}" | gzip > "${DUMP_FILE}"
+    echo "Dumped ${DB} -> ${DUMP_FILE}"
+
+    aws --endpoint-url="${S3_ENDPOINT}" \
+        s3 cp "${DUMP_FILE}" "s3://${S3_BUCKET}/daily/${DB}_${TIMESTAMP}.sql.gz" \
+        --quiet
+    echo "Uploaded ${DB} dump to S3"
+done
+
+# Weekly pg_basebackup (Sunday)
+if [ "$(date +%u)" -eq 7 ]; then
+    BASE_FILE="${BACKUP_DIR}/base_backup_${TIMESTAMP}.tar.gz"
+    pg_basebackup -D - -Ft -z -U postgres > "${BASE_FILE}" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        aws --endpoint-url="${S3_ENDPOINT}" \
+            s3 cp "${BASE_FILE}" "s3://${S3_BUCKET}/weekly/base_backup_${TIMESTAMP}.tar.gz" \
+            --quiet
+        echo "Base backup uploaded to S3"
+        rm -f "${BASE_FILE}"
+    else
+        echo "WARNING: Base backup failed"
+    fi
+fi
+
+# Clean up local backups older than retention
+find "${BACKUP_DIR}" -name "*.sql.gz" -mtime +${RETENTION_DAYS} -delete
+find "${BACKUP_DIR}" -name "base_backup_*" -mtime +${RETENTION_DAYS} -delete
+
+echo "=== PostgreSQL Backup Finished at $(date) ==="

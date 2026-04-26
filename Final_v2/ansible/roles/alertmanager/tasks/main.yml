@@ -1,0 +1,80 @@
+---
+- name: Create alertmanager user
+  ansible.builtin.user:
+    name: alertmanager
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create alertmanager directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: alertmanager
+    group: alertmanager
+    mode: "0755"
+  loop:
+    - /etc/alertmanager
+    - /var/lib/alertmanager
+
+- name: Check if alertmanager is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/alertmanager
+  register: am_binary
+
+- name: Download Alertmanager
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.linux-amd64.tar.gz"
+    dest: /tmp/alertmanager.tar.gz
+    mode: "0644"
+  when: not am_binary.stat.exists
+
+- name: Extract Alertmanager
+  ansible.builtin.unarchive:
+    src: /tmp/alertmanager.tar.gz
+    dest: /tmp
+    remote_src: true
+  when: not am_binary.stat.exists
+
+- name: Install Alertmanager binaries
+  ansible.builtin.copy:
+    src: "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: "0755"
+    remote_src: true
+  loop:
+    - alertmanager
+    - amtool
+  when: not am_binary.stat.exists
+  notify: restart alertmanager
+
+- name: Deploy Alertmanager config
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: /etc/alertmanager/alertmanager.yml
+    owner: alertmanager
+    group: alertmanager
+    mode: "0640"
+  notify: restart alertmanager
+
+- name: Deploy Alertmanager systemd service
+  ansible.builtin.template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/alertmanager.service
+    mode: "0644"
+  notify: restart alertmanager
+
+- name: Enable and start Alertmanager
+  ansible.builtin.systemd:
+    name: alertmanager
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Clean up temp files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/alertmanager.tar.gz
+    - "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64"

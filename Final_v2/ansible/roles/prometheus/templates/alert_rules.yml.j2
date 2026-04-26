@@ -1,0 +1,75 @@
+groups:
+  - name: node_alerts
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ '{{' }} $labels.instance {{ '}}' }} down"
+          description: "{{ '{{' }} $labels.instance {{ '}}' }} has been down for more than 2 minutes."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ '{{' }} $labels.instance {{ '}}' }}"
+          description: "CPU usage is above 85% (current: {{ '{{' }} $value | printf \"%.1f\" {{ '}}' }}%)"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ '{{' }} $labels.instance {{ '}}' }}"
+          description: "Memory usage is above 90% (current: {{ '{{' }} $value | printf \"%.1f\" {{ '}}' }}%)"
+
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage on {{ '{{' }} $labels.instance {{ '}}' }}"
+          description: "Disk usage is above 85% on {{ '{{' }} $labels.mountpoint {{ '}}' }} (current: {{ '{{' }} $value | printf \"%.1f\" {{ '}}' }}%)"
+
+      - alert: NginxDown
+        expr: probe_success{job="blackbox_http"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LibreSpeed website is down"
+          description: "HTTPS probe to {{ '{{' }} $labels.instance {{ '}}' }} failed."
+
+      - alert: PostgreSQLDown
+        expr: probe_success{job="blackbox_tcp_db"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL Database is unreachable"
+          description: "TCP port 5432 on {{ '{{' }} $labels.instance {{ '}}' }} is not responding."
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critically low disk space on {{ '{{' }} $labels.instance {{ '}}' }}"
+          description: "Disk space is below 10% on {{ '{{' }} $labels.mountpoint {{ '}}' }}"
+
+      - alert: SSLCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox_http"} - time() < 86400 * 7
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL Certificate for {{ '{{' }} $labels.instance {{ '}}' }} is expiring soon"
+          description: "SSL Certificate will expire in less than 7 days."
+

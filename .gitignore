@@ -1,0 +1,15 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+*.tfvars
+*.tfvars.json
+
+# Ansible
+*.retry
+inventory/group_vars/all/secrets.yml
+
+# OS
+.DS_Store
+.README.md.swp

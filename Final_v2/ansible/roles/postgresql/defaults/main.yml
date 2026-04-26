@@ -1,0 +1,10 @@
+---
+postgresql_version: "16"
+pg_speedtest_db: "speedtest"
+pg_speedtest_user: "speedtest"
+pg_grafana_db: "grafana"
+pg_grafana_user: "grafana"
+pg_replicator_user: "replicator"
+pg_data_dir: "/var/lib/postgresql/{{ postgresql_version }}/main"
+pg_conf_dir: "/etc/postgresql/{{ postgresql_version }}/main"
+pg_backup_dir: "/var/backups/postgresql"

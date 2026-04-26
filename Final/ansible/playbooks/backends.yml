@@ -1,6 +1,6 @@
 ---
 - name: Deploy Backend Servers
-  hosts: backends
+  hosts: "{{ target | default('backends') }}"
   become: true
   roles:
     - common

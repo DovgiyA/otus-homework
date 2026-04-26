@@ -1,6 +1,6 @@
 ---
 - name: Deploy Monitoring Stack
-  hosts: monitoring
+  hosts: "{{ target | default('monitoring') }}"
   become: true
   roles:
     - common

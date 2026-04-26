@@ -1,6 +1,6 @@
 ---
 - name: Deploy PostgreSQL Database
-  hosts: db
+  hosts: "{{ target | default('db') }}"
   become: true
   roles:
     - common
@@ -10,7 +10,7 @@
     - postgresql
 
 - name: Deploy PostgreSQL Standby
-  hosts: db_replica
+  hosts: "{{ target_replica | default('db_replica') }}"
   become: true
   roles:
     - common

@@ -1,0 +1,9 @@
+server.port: 5601
+server.host: "{{ kibana_listen_host }}"
+server.name: "{{ inventory_hostname }}"
+
+elasticsearch.hosts: ["http://{{ private_ip }}:9200"]
+
+xpack.encryptedSavedObjects.encryptionKey: "{{ kibana_encryption_key }}"
+
+logging.root.level: info

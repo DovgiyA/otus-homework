@@ -1,0 +1,14 @@
+server {
+    listen 80;
+    server_name {{ domain_name }} {{ domain_name_www }};
+
+    root {{ speedtest_root }};
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    access_log /var/log/nginx/speedtest_access.log;
+    error_log /var/log/nginx/speedtest_error.log;
+}

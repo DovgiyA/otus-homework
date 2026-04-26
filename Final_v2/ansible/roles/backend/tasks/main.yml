@@ -1,0 +1,143 @@
+---
+- name: Add PHP repository
+  ansible.builtin.apt_repository:
+    repo: "ppa:ondrej/php"
+    state: present
+
+- name: Install Nginx and PHP-FPM
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - "php{{ php_version }}-fpm"
+      - "php{{ php_version }}-pgsql"
+      - "php{{ php_version }}-gd"
+      - "php{{ php_version }}-mbstring"
+      - "php{{ php_version }}-curl"
+      - "php{{ php_version }}-xml"
+    state: present
+    update_cache: true
+
+- name: Create speedtest web directory
+  ansible.builtin.file:
+    path: "{{ speedtest_root }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Create subdirectories
+  ansible.builtin.file:
+    path: "{{ speedtest_root }}/{{ item }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  loop:
+    - backend
+    - results
+
+- name: Download LibreSpeed
+  ansible.builtin.get_url:
+    url: "https://github.com/librespeed/speedtest/archive/refs/heads/master.tar.gz"
+    dest: /tmp/librespeed.tar.gz
+    mode: "0644"
+  register: ls_download
+  changed_when: false
+
+- name: Extract LibreSpeed
+  ansible.builtin.unarchive:
+    src: /tmp/librespeed.tar.gz
+    dest: /tmp
+    remote_src: true
+  when: ls_download is succeeded
+
+- name: Copy LibreSpeed backend files
+  ansible.builtin.shell: |
+    cp -r /tmp/speedtest-master/backend/* {{ speedtest_root }}/backend/
+    cp -r /tmp/speedtest-master/results/* {{ speedtest_root }}/results/
+    cp /tmp/speedtest-master/*.js {{ speedtest_root }}/ 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Deploy index.html
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ speedtest_root }}/index.html"
+    owner: www-data
+    group: www-data
+    mode: "0644"
+
+- name: Deploy telemetry_settings.php
+  ansible.builtin.template:
+    src: telemetry_settings.php.j2
+    dest: "{{ speedtest_root }}/results/telemetry_settings.php"
+    owner: www-data
+    group: www-data
+    mode: "0640"
+
+- name: Deploy idObfuscation_salt.php
+  ansible.builtin.template:
+    src: idObfuscation_salt.php.j2
+    dest: "{{ speedtest_root }}/results/idObfuscation_salt.php"
+    owner: www-data
+    group: www-data
+    mode: "0640"
+
+- name: Create PHP-FPM log directory
+  ansible.builtin.file:
+    path: /var/log/php-fpm
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Deploy PHP-FPM pool config
+  ansible.builtin.template:
+    src: php-fpm-pool.conf.j2
+    dest: "/etc/php/{{ php_version }}/fpm/pool.d/speedtest.conf"
+    mode: "0644"
+  notify: restart php-fpm
+
+- name: Remove default PHP-FPM pool
+  ansible.builtin.file:
+    path: "/etc/php/{{ php_version }}/fpm/pool.d/www.conf"
+    state: absent
+  notify: restart php-fpm
+
+- name: Deploy Nginx backend config
+  ansible.builtin.template:
+    src: nginx-backend.conf.j2
+    dest: /etc/nginx/sites-available/speedtest.conf
+    mode: "0644"
+  notify: reload nginx
+
+- name: Enable Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/speedtest.conf
+    dest: /etc/nginx/sites-enabled/speedtest.conf
+    state: link
+  notify: reload nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: reload nginx
+
+- name: Set ownership on speedtest root
+  ansible.builtin.file:
+    path: "{{ speedtest_root }}"
+    state: directory
+    recurse: true
+    owner: www-data
+    group: www-data
+
+- name: Ensure services are started
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - nginx
+    - "php{{ php_version }}-fpm"

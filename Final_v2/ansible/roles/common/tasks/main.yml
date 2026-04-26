@@ -1,0 +1,63 @@
+---
+- name: Stop and disable unattended-upgrades
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: stopped
+    enabled: false
+  ignore_errors: true
+
+
+- name: Set timezone
+  ansible.builtin.timezone:
+    name: "{{ timezone }}"
+
+- name: Disable needrestart interactive prompts
+  ansible.builtin.copy:
+    dest: /etc/needrestart/conf.d/99-autorestart.conf
+    content: "$nrconf{restart} = 'a';\n"
+    mode: "0644"
+  ignore_errors: true
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 300
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    lock_timeout: 300
+
+- name: Configure /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ".*{{ item.hostname }}$"
+    line: "{{ item.ip }}  {{ item.hostname }}"
+    state: present
+  loop: "{{ etc_hosts_entries }}"
+
+- name: Enable and start chrony
+  ansible.builtin.systemd:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Apply sysctl parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    reload: true
+  loop: "{{ sysctl_params | dict2items }}"
+
+- name: Configure system limits
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/99-custom.conf
+    content: |
+      * soft nofile {{ system_limits_nofile }}
+      * hard nofile {{ system_limits_nofile }}
+      * soft nproc  {{ system_limits_nproc }}
+      * hard nproc  {{ system_limits_nproc }}
+    mode: "0644"

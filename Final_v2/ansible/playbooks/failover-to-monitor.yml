@@ -1,0 +1,47 @@
+---
+# When monitor host fails:
+# Backup gets the full monitoring stack.
+#
+# Usage: ansible-playbook playbooks/failover-to-monitor.yml --ask-vault-pass
+#
+# After running this playbook, update monitoring_ip in group_vars
+# and re-run fluentd on all hosts to redirect logs.
+
+- name: Failover - Convert backup to monitoring
+  hosts: backup_group
+  become: true
+
+  pre_tasks:
+    - name: Update firewall for monitoring ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "3000"
+        - "5601"
+        - "9090"
+        - "9093"
+        - "9200"
+        - "24224"
+
+  roles:
+    - { role: elasticsearch,     tags: [elasticsearch] }
+    - { role: kibana,            tags: [kibana] }
+    - { role: blackbox_exporter, tags: [blackbox] }
+    - { role: prometheus,        tags: [prometheus] }
+    - { role: alertmanager,      tags: [alertmanager] }
+    - { role: grafana,           tags: [grafana] }
+    - { role: fluentd,           tags: [fluentd] }
+
+  post_tasks:
+    - name: Display failover status
+      ansible.builtin.debug:
+        msg: |
+          Failover complete. Backup host is now the monitoring server.
+          Next steps:
+          1. Update monitoring_ip in inventory/group_vars/all.yml to {{ private_ip }}
+          2. Re-run fluentd role on all hosts to redirect logs:
+             ansible-playbook playbooks/site.yml --tags fluentd
+          3. Verify Grafana at http://{{ ansible_host }}:3000
+          4. Plan recovery of original monitor host

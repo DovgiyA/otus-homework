@@ -1,0 +1,49 @@
+---
+- name: Install awscli for S3 uploads
+  ansible.builtin.apt:
+    name: awscli
+    state: present
+
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ pg_backup_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0750"
+
+- name: Create AWS config directory
+  ansible.builtin.file:
+    path: /var/lib/postgresql/.aws
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Configure AWS credentials for postgres user
+  ansible.builtin.copy:
+    dest: /var/lib/postgresql/.aws/credentials
+    content: |
+      [default]
+      aws_access_key_id = {{ s3_access_key }}
+      aws_secret_access_key = {{ s3_secret_key }}
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  no_log: true
+
+- name: Deploy backup script
+  ansible.builtin.template:
+    src: pg_backup.sh.j2
+    dest: /usr/local/bin/pg_backup.sh
+    mode: "0750"
+    owner: postgres
+    group: postgres
+
+- name: Setup daily backup cron
+  ansible.builtin.cron:
+    name: "PostgreSQL daily backup"
+    user: postgres
+    hour: "2"
+    minute: "0"
+    job: "/usr/local/bin/pg_backup.sh >> /var/log/postgresql/backup.log 2>&1"

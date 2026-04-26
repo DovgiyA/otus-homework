@@ -1,0 +1,168 @@
+---
+# Failover - Promote existing DB replica to Primary
+# This is the preferred way to failover if the replica is healthy.
+#
+# Usage: ansible-playbook playbooks/failover-to-db-replica.yml --ask-vault-pass
+
+- name: Failover - Promote DB replica to Primary + backend
+  hosts: db_replica_group
+  become: true
+  
+  # pre_tasks run BEFORE roles
+  pre_tasks:
+    - name: Check if PostgreSQL is in recovery mode
+      become_user: postgres
+      ansible.builtin.command: psql -tAc "SELECT pg_is_in_recovery();"
+      register: recovery_status
+      changed_when: false
+
+    - name: Promote PostgreSQL replica to primary
+      ansible.builtin.command: pg_ctlcluster {{ postgresql_version }} main promote
+      when: "'t' in recovery_status.stdout"
+      register: promote_result
+
+    - name: Wait for promotion to complete
+      ansible.builtin.wait_for:
+        path: "/var/lib/postgresql/{{ postgresql_version }}/main/standby.signal"
+        state: absent
+        timeout: 30
+      when: promote_result is changed
+
+    - name: Wait for PostgreSQL to accept connections
+      ansible.builtin.wait_for:
+        port: 5432
+        host: "{{ private_ip }}"
+        timeout: 30
+
+    - name: Update firewall for backend traffic
+      community.general.ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Update pg_hba.conf on the new master to allow replication from backup
+      ansible.builtin.template:
+        src: ../roles/postgresql/templates/pg_hba.conf.j2
+        dest: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
+      vars:
+        # Use the specific backup host IP (template already appends /32)
+        db_replica_ip: "{{ hostvars[groups['backup_group'][0]]['private_ip'] }}"
+        # Ensure local backend can connect via 127.0.0.1
+        backend_db_ip: "127.0.0.1"
+      notify: restart postgresql on master
+
+    - name: Create replication slot for new standby
+      become_user: postgres
+      ansible.builtin.command: >
+        psql -c "SELECT pg_create_physical_replication_slot('standby_slot');"
+      register: slot_result
+      failed_when: false
+      changed_when: "'already exists' not in slot_result.stderr"
+
+  handlers:
+    - name: restart postgresql on master
+      ansible.builtin.systemd:
+        name: postgresql
+        state: restarted
+
+  roles:
+    - role: backend
+      tags: [backend]
+      vars:
+        # Connect to itself
+        backend_db_ip: "localhost"
+    - { role: fluentd, tags: [fluentd] }
+
+  tasks:
+    - name: Flush handlers to ensure services are restarted
+      ansible.builtin.meta: flush_handlers
+
+    - name: Display promotion status
+      ansible.builtin.debug:
+        msg: |
+          Success! db-replica has been promoted to Primary.
+          - Data preserved from streaming replication.
+          - Backend is running on the same host.
+
+- name: Update frontend configuration to point to the promoted replica
+  hosts: frontend_group
+  become: true
+  vars:
+    speedtest_root: "/var/www/speedtest"
+  tasks:
+    - name: Update Nginx configuration with new backend IP (replica)
+      ansible.builtin.template:
+        src: ../roles/frontend/templates/nginx-speedtest.conf.j2
+        dest: /etc/nginx/sites-available/speedtest.conf
+        mode: "0644"
+      vars:
+        # Point to the promoted replica's IP (dynamic via groups)
+        backend_db_ip: "{{ hostvars[groups['db_replica_group'][0]]['private_ip'] }}"
+
+    - name: Reload Nginx on frontend
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Display frontend update status
+      ansible.builtin.debug:
+        msg: "Frontend has been updated to use Promoted Replica at {{ hostvars[groups['db_replica_group'][0]]['private_ip'] }}"
+
+- name: Restore replication on backup host
+  hosts: backup_group
+  become: true
+  roles:
+    - role: pg_standby
+      tags: [pg_standby]
+      vars:
+        # Now the backup host replicates from the NEW primary (db-replica)
+        backend_db_ip: "{{ hostvars[groups['db_replica_group'][0]]['private_ip'] }}"
+
+  post_tasks:
+    - name: Display recovery status
+      ansible.builtin.debug:
+        msg: |
+          Redundancy restored! 
+          - backup host ({{ private_ip }}) is now a replica of db-replica ({{ hostvars[groups['db_replica_group'][0]]['private_ip'] }})
+
+- name: Update monitoring configuration to point to the promoted replica
+  hosts: monitoring
+  become: true
+  tasks:
+    - name: Update Grafana configuration with new backend IP
+      ansible.builtin.template:
+        src: ../roles/grafana/templates/grafana.ini.j2
+        dest: /etc/grafana/grafana.ini
+        owner: root
+        group: grafana
+        mode: "0640"
+      vars:
+        # Point Grafana to the new primary database
+        backend_db_ip: "{{ hostvars[groups['db_replica_group'][0]]['private_ip'] }}"
+
+    - name: Restart Grafana service
+      ansible.builtin.systemd:
+        name: grafana-server
+        state: restarted
+
+    - name: Update Prometheus configuration with new backend IP (for blackbox probes)
+      ansible.builtin.template:
+        src: ../roles/prometheus/templates/prometheus.yml.j2
+        dest: /etc/prometheus/prometheus.yml
+        owner: root
+        group: prometheus
+        mode: "0644"
+      vars:
+        # Deactivate monitoring for the fallen master
+        backend_db_active: false
+        # Point blackbox probes to the new primary database
+        backend_db_ip: "{{ hostvars[groups['db_replica_group'][0]]['private_ip'] }}"
+
+    - name: Reload Prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: reloaded
+
+    - name: Display monitoring update status
+      ansible.builtin.debug:
+        msg: "Monitoring stack (Grafana & Prometheus) has been updated to use Promoted Replica at {{ hostvars[groups['db_replica_group'][0]]['private_ip'] }}"

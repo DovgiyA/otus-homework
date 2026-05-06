@@ -11,6 +11,20 @@
     state: present
     filename: pgdg
 
+- name: Stop unattended-upgrades to release dpkg lock
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: stopped
+  failed_when: false
+
+- name: Wait for dpkg lock to be released
+  ansible.builtin.shell: |
+    while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      sleep 2
+    done
+  changed_when: false
+  timeout: 120
+
 - name: Install PostgreSQL
   ansible.builtin.apt:
     name:

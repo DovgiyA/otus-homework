@@ -1,9 +1,4 @@
 ---
-- name: Add PHP repository
-  ansible.builtin.apt_repository:
-    repo: "ppa:ondrej/php"
-    state: present
-
 - name: Install Nginx and PHP-FPM
   ansible.builtin.apt:
     name:
@@ -16,6 +11,7 @@
       - "php{{ php_version }}-xml"
     state: present
     update_cache: true
+    lock_timeout: 300
 
 - name: Create speedtest web directory
   ansible.builtin.file:

@@ -32,7 +32,7 @@ elasticsearch_version: "8"
 log_retention_days: 7
 
 # PHP version
-php_version: "8.3"
+php_version: "8.1"
 
 # Timezone
 timezone: "Europe/Moscow"
